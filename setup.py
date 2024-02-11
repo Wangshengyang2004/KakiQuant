@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="kakiquant",
+    name="kaki",
     version="0.1.0",
     author="Shengyang Wang",
     author_email="shengyang.wang2@dukekunshan.edu.cn",
