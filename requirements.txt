@@ -1,0 +1,13 @@
+python-dotenv
+lightgbm
+setuptools
+scikit-learn
+pymongo
+catboost
+xgboost
+pandas
+matplotlib
+seaborn
+openfe
+tqdm
+python-okx

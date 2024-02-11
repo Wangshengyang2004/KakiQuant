@@ -1,0 +1,10 @@
+cudf-cu11==23.12.*
+dask-cudf-cu11==23.12.*
+cuml-cu11==23.12.*
+cugraph-cu11==23.12.*
+cuspatial-cu11==23.12.*
+cuproj-cu11==23.12.*
+cuxfilter-cu11==23.12.*
+cucim-cu11==23.12.*
+pylibraft-cu11==23.12.*
+raft-dask-cu11==23.12.*
