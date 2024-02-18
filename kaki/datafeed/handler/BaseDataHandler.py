@@ -2,7 +2,7 @@ import pandas as pd
 import time
 import logging
 from pymongo import MongoClient
-from util import get_client_str
+from kaki.utils.check_db import get_client_str
 logging.basicConfig(level=logging.INFO)
 
 class BaseDataHandler:
