@@ -110,7 +110,7 @@ class CryptoDataHandler(BaseDataHandler):
         logging.info(f"Data saved to {full_path}")
 
 
-    # fetch Copytrader data
+    # ------------------------fetch Copytrader data-------------------------- # 
     def fetch_copytrader_data(self):
         pass
 

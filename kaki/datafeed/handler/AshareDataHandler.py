@@ -20,6 +20,9 @@ class AshareDataHandler(BaseDataHandler):
         super().__init__(db_name, collection_name)
         self.pro = ts.pro_api(os.getenv["TUSHARE_TOKEN"])
 
+    def fetch_index_list(self, start_date, end_date):
+        pass
+
     def fetch_index_components(self, index_code, start_date, end_date):
         """
         例子：获取指数成分股 沪深300
