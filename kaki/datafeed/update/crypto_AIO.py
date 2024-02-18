@@ -45,14 +45,62 @@ class CryptoDataUpdater:
             df[field] = pd.to_numeric(df[field], errors='coerce')
         return df
 
-    def fetch_kline_data(self, inst_id, bar):
-        start_date = "2019-01-01"
-        end_date = self.today()
-        latest_timestamp_db = self.find_bounds(inst_id, bar)
-        start_timestamp = latest_timestamp_db + 1 if latest_timestamp_db else int(pd.Timestamp(start_date).timestamp()) * 1000
+    def fetch_kline_data(self, inst_id, bar, start_date, end_date, max_retries=3, initial_delay=1, save_to_db=True):
+        # Convert start and end dates to Unix timestamp in milliseconds
+        start_timestamp = int(pd.Timestamp(start_date).timestamp()) * 1000
         end_timestamp = int(pd.Timestamp(end_date).timestamp()) * 1000
-        
-        # Simplify for demonstration; implement your fetching logic here based on the API client
+
+        # Initially, 'before' is None to fetch the latest data
+        a = end_timestamp
+        b = None
+        is_first_time = True
+        while True:
+            retries = 0
+            while retries < max_retries:
+                try:
+                    result = self.api_client.get_history_candlesticks(
+                        instId=inst_id,
+                        before=str(b) if b else "",
+                        after=str(a),
+                        bar=bar
+                    )
+
+                    # Check if result is empty or contains data
+                    if not result['data']:
+                        logging.info("No more data to fetch or empty data returned.")
+                        return
+
+                    # Process the data
+                    df = self.process_kline(result['data'])
+                    
+                    # Insert data to MongoDB if applicable
+                    if save_to_db and not df.empty:
+                        self.insert_data_to_mongodb(df)
+                        logging.info(f"Successfully inserted data for {inst_id} {bar}.")
+
+                    # Update 'before' and 'after' for the next request
+                    earliest_timestamp = int(result['data'][-1][0])
+                    if is_first_time:
+                        time_interval = int(result['data'][0][0]) - earliest_timestamp
+                        is_first_time = False
+                    a = earliest_timestamp - time_interval - 1
+
+                    # Break if we have reached the starting timestamp
+                    if a <= start_timestamp:
+                        logging.info(f"Reached the start date for {inst_id} {bar}.")
+                        return
+
+                    break
+
+                except Exception as e:
+                    logging.error(f"Error occurred: {e}")
+                    retries += 1
+                    time.sleep(initial_delay * retries)  # Exponential backoff
+                    if retries == max_retries:
+                        logging.error("Max retries reached. Exiting.")
+                        return
+                    logging.info(f"Retrying... Attempt {retries}/{max_retries}")
+
 
     @staticmethod
     def today(tushare_format=False):
