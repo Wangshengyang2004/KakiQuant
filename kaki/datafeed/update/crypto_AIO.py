@@ -7,6 +7,8 @@ import concurrent.futures
 import okx.MarketData as MarketData
 import okx.PublicData as PublicData
 from pymongo import MongoClient
+from datetime import datetime
+import random
 
 class CryptoDataUpdater:
     def __init__(self):
@@ -38,17 +40,24 @@ class CryptoDataUpdater:
         return spot_list + swap_list
 
     def process_kline(self, data):
-        df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote'])
+        df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm'])
         df['timestamp'] = pd.to_datetime(df['timestamp'].astype(int), unit='ms')
-        numeric_fields = ['open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote']
+        numeric_fields = ['open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm']
         for field in numeric_fields:
             df[field] = pd.to_numeric(df[field], errors='coerce')
         return df
 
-    def fetch_kline_data(self, inst_id, bar, start_date, end_date, max_retries=3, initial_delay=1, save_to_db=True):
+    def newest_data_ts(self, inst_id, bar):
+        result = self.api_client.get_history_candlesticks(
+                        instId=inst_id,
+                        bar=bar
+                    )['data'][0][0]
+        return result
+    def fetch_kline_data(self, inst_id:str, bar:str, start_date="2019-01-01", max_retries=5, initial_delay=1, save_to_db=True):
+        # Always ensure the newest data is the end_date
+        end_timestamp = self.newest_data_ts(inst_id, bar)
         # Convert start and end dates to Unix timestamp in milliseconds
         start_timestamp = int(pd.Timestamp(start_date).timestamp()) * 1000
-        end_timestamp = int(pd.Timestamp(end_date).timestamp()) * 1000
 
         # Initially, 'before' is None to fetch the latest data
         a = end_timestamp
@@ -83,13 +92,14 @@ class CryptoDataUpdater:
                     if is_first_time:
                         time_interval = int(result['data'][0][0]) - earliest_timestamp
                         is_first_time = False
-                    a = earliest_timestamp - time_interval - 1
+                    a = earliest_timestamp
+                    b = a - time_interval - 4 + random.randint(1, 10)*2
 
                     # Break if we have reached the starting timestamp
                     if a <= start_timestamp:
                         logging.info(f"Reached the start date for {inst_id} {bar}.")
                         return
-
+                    time.sleep(0.2)
                     break
 
                 except Exception as e:
@@ -110,7 +120,10 @@ class CryptoDataUpdater:
 
     def update_data(self):
         pair_list = self.get_all_coin_pairs()
+        # pair_list = ["BTC-USDT-SWAP"]
         bar_sizes = ['1m', '3m', '5m', '15m', '30m', '1H', '4H', '1D', '1W']
+        # bar_sizes = ['1m']
+        # self.fetch_kline_data(inst_id=pair_list[0], bar=bar_sizes[0])
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = []
             for inst_id in pair_list:
