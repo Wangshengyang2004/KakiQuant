@@ -39,12 +39,14 @@ class CryptoDataUpdater:
         swap_list = [i["instId"] for i in swap_result["data"]]
         return spot_list + swap_list
 
-    def process_kline(self, data):
+    def process_kline(self, data, inst_id, bar):
         df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm'])
         df['timestamp'] = pd.to_datetime(df['timestamp'].astype(int), unit='ms')
         numeric_fields = ['open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm']
         for field in numeric_fields:
             df[field] = pd.to_numeric(df[field], errors='coerce')
+        df['instId'] = inst_id
+        df['bar'] = bar
         return df
 
     def newest_data_ts(self, inst_id, bar):
