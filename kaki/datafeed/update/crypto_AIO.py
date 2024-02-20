@@ -12,7 +12,7 @@ import random
 
 class CryptoDataUpdater:
     def __init__(self):
-        self.client = MongoClient('192.168.31.120', 27017)
+        self.client = MongoClient('localhost', 27017)
         self.db = self.client.crypto
         self.collection = self.db.crypto_kline
         self.api_client = MarketData.MarketAPI(flag="0")  # Adjust this based on your API client initialization
@@ -82,7 +82,7 @@ class CryptoDataUpdater:
                         return
 
                     # Process the data
-                    df = self.process_kline(result['data'])
+                    df = self.process_kline(result['data'], inst_id=inst_id, bar=bar)
                     
                     # Insert data to MongoDB if applicable
                     if save_to_db and not df.empty:

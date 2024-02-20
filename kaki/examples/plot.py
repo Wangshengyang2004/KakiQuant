@@ -48,12 +48,12 @@ def get_crypto_kline(collection, instId, bar, start_date=None, end_date=None):
 
 # Example usage
 if __name__ == "__main__":
-    client = MongoClient('mongodb://192.168.31.120:27017/')
+    client = MongoClient('mongodb://localhost:27017/')
     db = client['crypto']  # Adjust as per your MongoDB setup
     collection = db['crypto_kline']  # Adjust as per your MongoDB setup
     
     instId = "BTC-USDT"
-    bar = "1m"
+    bar = "3m"
     # start_date = "2021-01-01"
     # end_date = "2021-12-31"
     
@@ -64,8 +64,8 @@ if __name__ == "__main__":
 
     # Create a candlestick chart
     ax,ax2 = fplt.create_plot('AAPL Candlestick Chart', rows=2)
-    fplt.candlestick_ochl(df[['timestamp', 'open', 'close', 'high', 'low']], ax=ax)
-    fplt.volume_ocv(df[['timestamp', 'open', 'close', 'volume']], ax=ax2)
+    fplt.candlestick_ochl(df[['open', 'close', 'high', 'low']], ax=ax)
+    fplt.volume_ocv(df[['open', 'close', 'volume']], ax=ax2)
 
     # Show the plot
     fplt.show()
