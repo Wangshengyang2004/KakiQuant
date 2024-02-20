@@ -55,7 +55,8 @@ class CryptoDataUpdater:
                         bar=bar
                     )['data'][0][0]
         return result
-    def fetch_kline_data(self, inst_id:str, bar:str, start_date="2019-01-01", max_retries=5, initial_delay=1, save_to_db=True):
+
+    def fetch_kline_data(self, inst_id: str, bar: str, start_date="2019-01-01", initial_delay=1):
         # Always ensure the newest data is the end_date
         end_timestamp = self.newest_data_ts(inst_id, bar)
         # Convert start and end dates to Unix timestamp in milliseconds
@@ -65,53 +66,58 @@ class CryptoDataUpdater:
         a = end_timestamp
         b = None
         is_first_time = True
+
+        # Initialize dynamic sleep time
+        sleep_time = initial_delay
+        min_sleep_time = 0.1  # Minimum sleep time
+        max_sleep_time = 5.0  # Maximum sleep time
+        sleep_adjustment_factor = 0.5  # Factor to adjust sleep time
+
         while True:
-            retries = 0
-            while retries < max_retries:
-                try:
-                    result = self.api_client.get_history_candlesticks(
-                        instId=inst_id,
-                        before=str(b) if b else "",
-                        after=str(a),
-                        bar=bar
-                    )
+            try:
+                result = self.api_client.get_history_candlesticks(
+                    instId=inst_id,
+                    before=str(b) if b else "",
+                    after=str(a),
+                    bar=bar
+                )
 
-                    # Check if result is empty or contains data
-                    if not result['data']:
-                        logging.info("No more data to fetch or empty data returned.")
-                        return
+                # Check if result is empty or contains data
+                if not result['data']:
+                    logging.info("No more data to fetch or empty data returned.")
+                    return
 
-                    # Process the data
-                    df = self.process_kline(result['data'], inst_id=inst_id, bar=bar)
-                    
-                    # Insert data to MongoDB if applicable
-                    if save_to_db and not df.empty:
-                        self.insert_data_to_mongodb(df)
-                        logging.info(f"Successfully inserted data for {inst_id} {bar}.")
+                # Process the data
+                df = self.process_kline(result['data'], inst_id=inst_id, bar=bar)
+                
+                # Insert data to MongoDB if applicable
+                if not df.empty:
+                    self.insert_data_to_mongodb(df)
+                    logging.info(f"Successfully inserted data for {inst_id} {bar}.")
 
-                    # Update 'before' and 'after' for the next request
-                    earliest_timestamp = int(result['data'][-1][0])
-                    if is_first_time:
-                        time_interval = int(result['data'][0][0]) - earliest_timestamp
-                        is_first_time = False
-                    a = earliest_timestamp
-                    b = a - time_interval - 4 + random.randint(1, 10)*2
+                # Update 'before' and 'after' for the next request
+                earliest_timestamp = int(result['data'][-1][0])
+                if is_first_time:
+                    time_interval = int(result['data'][0][0]) - earliest_timestamp
+                    is_first_time = False
+                a = earliest_timestamp
+                b = a - time_interval - 4 + random.randint(1, 10)*2
 
-                    # Break if we have reached the starting timestamp
-                    if a <= start_timestamp:
-                        logging.info(f"Reached the start date for {inst_id} {bar}.")
-                        return
-                    time.sleep(0.2)
-                    break
+                # Reduce sleep time after a successful request, but not below the minimum
+                sleep_time = max(min_sleep_time, sleep_time - sleep_adjustment_factor)
 
-                except Exception as e:
-                    logging.error(f"Error occurred: {e}")
-                    retries += 1
-                    time.sleep(initial_delay * retries)  # Exponential backoff
-                    if retries == max_retries:
-                        logging.error("Max retries reached. Exiting.")
-                        return
-                    logging.info(f"Retrying... Attempt {retries}/{max_retries}")
+                # Break if we have reached the starting timestamp
+                if a <= start_timestamp:
+                    logging.info(f"Reached the start date for {inst_id} {bar}.")
+                    return
+                time.sleep(sleep_time)
+
+            except Exception as e:
+                logging.error(f"Error occurred: {e}")
+                # Increase sleep time after an error, but not above the maximum
+                sleep_time = min(max_sleep_time, sleep_time + sleep_adjustment_factor)
+                time.sleep(sleep_time)
+
 
 
     @staticmethod
