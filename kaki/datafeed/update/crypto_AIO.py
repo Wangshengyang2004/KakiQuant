@@ -19,6 +19,16 @@ class CryptoDataUpdater:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
                             handlers=[logging.FileHandler("crypto_AIO.log"), logging.StreamHandler()])
 
+    def get_history_candlesticks(self, instId, bar, before=None, after=None, limit=100):
+        params = {
+            'instId': instId,
+            'bar': bar,
+            'before': before,
+            'after': after,
+            'limit': limit
+        }
+        response = requests.get(self.base_url, params=params)
+        return response
     def find_bounds(self, inst_id, bar):
         latest_record = self.collection.find_one({'instId': inst_id, 'bar': bar}, sort=[('timestamp', pymongo.DESCENDING)])
         if latest_record:
@@ -50,10 +60,7 @@ class CryptoDataUpdater:
         return df
 
     def newest_data_ts(self, inst_id, bar):
-        result = self.api_client.get_history_candlesticks(
-                        instId=inst_id,
-                        bar=bar
-                    )['data'][0][0]
+        result = self.get_history_candlesticks(inst_id, bar, limit=1).json()["data"][0][0]
         return result
 
     def fetch_kline_data(self, inst_id: str, bar: str, start_date="2019-01-01", initial_delay=1):
