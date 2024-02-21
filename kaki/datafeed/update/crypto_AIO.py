@@ -61,6 +61,7 @@ class CryptoDataUpdater:
 
     def newest_data_ts(self, inst_id, bar):
         result = self.get_history_candlesticks(inst_id, bar, limit=1).json()["data"][0][0]
+        logging.info(f"Newest data for {inst_id}-{bar} is at {self.ts_to_date(result)}.")
         return result
 
     def fetch_kline_data(self, inst_id: str, bar: str, start_date="2019-01-01", initial_delay=1):
@@ -93,6 +94,7 @@ class CryptoDataUpdater:
                 # If http status is not too many request, we can assume that we need to break the loop
                 if response.status_code == 200:
                     result = response.json()
+                    logging.info(f"Received {len(result['data'])} records for {inst_id}-{bar}.")
                     # Check if result is empty or contains data
                     if not result['data']:
                         logging.info(f"No more data to fetch or empty data returned for {inst_id}-{bar}.")
