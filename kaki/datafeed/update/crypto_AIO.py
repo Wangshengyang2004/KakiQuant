@@ -4,7 +4,7 @@ from datetime import datetime
 import logging
 import time
 import concurrent.futures
-import okx.MarketData as MarketData
+import requests
 import okx.PublicData as PublicData
 from pymongo import MongoClient
 from datetime import datetime
@@ -15,7 +15,7 @@ class CryptoDataUpdater:
         self.client = MongoClient('localhost', 27017)
         self.db = self.client.crypto
         self.collection = self.db.crypto_kline
-        self.api_client = MarketData.MarketAPI(flag="0")  # Adjust this based on your API client initialization
+        self.base_url = "https://www.okx.com/api/v5/market/history-mark-price-candles"
         logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
                             handlers=[logging.FileHandler("crypto_AIO.log"), logging.StreamHandler()])
 
@@ -74,14 +74,18 @@ class CryptoDataUpdater:
         while True:
             try:
                 logging.info(f"Fetching data for {inst_id} {bar} from {self.ts_to_date(a)} to {self.ts_to_date(b)}.")
-                result = self.api_client.get_history_candlesticks(
-                    instId=inst_id,
-                    before=str(b) if b else "",
-                    after=str(a),
-                    bar=bar
-                )
+                params = {
+                    'instId': inst_id,
+                    'before': str(b) if b else "",
+                    'after': str(a),
+                    'bar': bar
+                }
+                
+                response = requests.get(self.base_url, params=params)
+                
                 # If http status is not too many request, we can assume that we need to break the loop
-                if result.status_code == 200:
+                if response.status_code == 200:
+                    result = response.json()
                     # Check if result is empty or contains data
                     if not result['data']:
                         logging.info(f"No more data to fetch or empty data returned for {inst_id}-{bar}.")
@@ -103,7 +107,7 @@ class CryptoDataUpdater:
                             is_first_time = False
                         a = earliest_timestamp
                         b = a - time_interval - 4 + random.randint(1, 10)*2
-                elif result.status_code == 429:
+                elif response.status_code == 429:
                     # Sleep for a random time between 1 and 5 seconds
                     sleep_time = random.uniform(1, 5)
                     logging.info(f"Too many requests. Sleeping for {sleep_time:.2f} seconds.")
