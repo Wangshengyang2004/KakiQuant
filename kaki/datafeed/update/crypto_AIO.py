@@ -65,6 +65,7 @@ class CryptoDataUpdater:
         return result
 
     def fetch_kline_data(self, inst_id: str, bar: str, start_date="2019-01-01", initial_delay=1):
+        start_date = pd.to_datetime(start_date)  # Convert start_date to datetime object
         # Always ensure the newest data is the end_date
         end_timestamp = self.newest_data_ts(inst_id, bar)
 
