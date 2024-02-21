@@ -59,8 +59,6 @@ class CryptoDataUpdater:
     def fetch_kline_data(self, inst_id: str, bar: str, start_date="2019-01-01", initial_delay=1):
         # Always ensure the newest data is the end_date
         end_timestamp = self.newest_data_ts(inst_id, bar)
-        # Convert start and end dates to Unix timestamp in milliseconds
-        start_timestamp = int(pd.Timestamp(start_date).timestamp()) * 1000
 
         # Initially, 'before' is None to fetch the latest data
         a = end_timestamp
@@ -75,41 +73,48 @@ class CryptoDataUpdater:
 
         while True:
             try:
+                logging.info(f"Fetching data for {inst_id} {bar} from {self.ts_to_date(a)} to {self.ts_to_date(b)}.")
                 result = self.api_client.get_history_candlesticks(
                     instId=inst_id,
                     before=str(b) if b else "",
                     after=str(a),
                     bar=bar
                 )
+                # If http status is not too many request, we can assume that we need to break the loop
+                if result.status_code == 200:
+                    # Check if result is empty or contains data
+                    if not result['data']:
+                        logging.info(f"No more data to fetch or empty data returned for {inst_id}-{bar}.")
+                        break
+                    else:
 
-                # Check if result is empty or contains data
-                if not result['data']:
-                    logging.info("No more data to fetch or empty data returned.")
-                    return
+                        # Process the data
+                        df = self.process_kline(result['data'], inst_id=inst_id, bar=bar)
+                        
+                        # Insert data to MongoDB if applicable
+                        if not df.empty:
+                            self.insert_data_to_mongodb(df)
+                            logging.info(f"Successfully inserted data for {inst_id} {bar}.")
 
-                # Process the data
-                df = self.process_kline(result['data'], inst_id=inst_id, bar=bar)
+                        # Update 'before' and 'after' for the next request
+                        earliest_timestamp = int(result['data'][-1][0])
+                        if is_first_time:
+                            time_interval = int(result['data'][0][0]) - earliest_timestamp
+                            is_first_time = False
+                        a = earliest_timestamp
+                        b = a - time_interval - 4 + random.randint(1, 10)*2
+                elif result.status_code == 429:
+                    # Sleep for a random time between 1 and 5 seconds
+                    sleep_time = random.uniform(1, 5)
+                    logging.info(f"Too many requests. Sleeping for {sleep_time:.2f} seconds.")
+                    time.sleep(sleep_time)
                 
-                # Insert data to MongoDB if applicable
-                if not df.empty:
-                    self.insert_data_to_mongodb(df)
-                    logging.info(f"Successfully inserted data for {inst_id} {bar}.")
-
-                # Update 'before' and 'after' for the next request
-                earliest_timestamp = int(result['data'][-1][0])
-                if is_first_time:
-                    time_interval = int(result['data'][0][0]) - earliest_timestamp
-                    is_first_time = False
-                a = earliest_timestamp
-                b = a - time_interval - 4 + random.randint(1, 10)*2
-
+                else:
+                    logging.error(f"Failed to fetch data: {result.text}")
+                    break
                 # Reduce sleep time after a successful request, but not below the minimum
                 sleep_time = max(min_sleep_time, sleep_time - sleep_adjustment_factor)
 
-                # Break if we have reached the starting timestamp
-                if a <= start_timestamp:
-                    logging.info(f"Reached the start date for {inst_id} {bar}.")
-                    return
                 time.sleep(sleep_time)
 
             except Exception as e:
@@ -126,6 +131,9 @@ class CryptoDataUpdater:
             return datetime.today().strftime("%Y%m%d")
         return datetime.today().strftime("%Y-%m-%d")
 
+    @staticmethod
+    def ts_to_date(ts):
+        return datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
     def update_data(self):
         pair_list = self.get_all_coin_pairs()
         # pair_list = ["BTC-USDT-SWAP"]
