@@ -107,6 +107,7 @@ class CryptoDataUpdater:
                             is_first_time = False
                         a = earliest_timestamp
                         b = a - time_interval - 4 + random.randint(1, 10)*2
+                        return
                 elif response.status_code == 429:
                     # Sleep for a random time between 1 and 5 seconds
                     sleep_time = random.uniform(1, 5)
