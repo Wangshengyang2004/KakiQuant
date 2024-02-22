@@ -90,7 +90,7 @@ class CryptoDataUpdater:
                     'bar': bar
                 }
                 
-                response = requests.get(self.base_url, params=params)
+                response = requests.get(self.base_url, params=params, timeout=5)
                 
                 # If http status is not too many request, we can assume that we need to break the loop
                 if response.status_code == 200:
