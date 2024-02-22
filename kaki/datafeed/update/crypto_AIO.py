@@ -10,6 +10,7 @@ import okx.MarketData as MarketData
 from pymongo import MongoClient
 from datetime import datetime
 import random
+import numpy as np
 
 class CryptoDataUpdater:
     def __init__(self):
@@ -98,7 +99,7 @@ class CryptoDataUpdater:
                 
                 # If http status is not too many request, we can assume that we need to break the loop
                 if response.status_code == 200:
-                    result = response.json()
+                    result = response.json(parse_int=np.int64)
                     logging.info(f"Received {len(result['data'])} records for {inst_id}-{bar}.")
                     # Check if result is empty or contains data
                     if not result['data']:
