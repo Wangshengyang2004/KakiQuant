@@ -1,6 +1,6 @@
 import tushare as ts
 import pandas as pd
-from utils.check_root_base import find_and_add_project_root
+from kaki.utils.check_root_base import find_and_add_project_root
 import os
 today = '20240223'
 savepath = os.path.join(find_and_add_project_root(), "data/stock_data/")
