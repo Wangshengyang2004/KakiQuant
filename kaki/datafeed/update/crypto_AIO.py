@@ -1,6 +1,5 @@
 import pandas as pd
 import pymongo
-from datetime import datetime
 import logging
 import time
 import concurrent.futures
@@ -8,7 +7,6 @@ import requests
 import okx.PublicData as PublicData
 import okx.MarketData as MarketData
 from pymongo import MongoClient
-from datetime import datetime
 import random
 import numpy as np
 
@@ -26,24 +24,18 @@ class CryptoDataUpdater:
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
             'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive'
-
         }
 
-    def get_history_candlesticks(self, instId, bar, before=None, after=None, limit=100):
-        params = {
-            'instId': instId,
-            'bar': bar,
-            'before': before,
-            'after': after,
-            'limit': limit
-        }
-        response = requests.get(self.base_url, params=params)
-        return response
-    def find_bounds(self, inst_id, bar):
+    def find_bounds(self, inst_id:str, bar:str) -> tuple:
         latest_record = self.collection.find_one({'instId': inst_id, 'bar': bar}, sort=[('timestamp', pymongo.DESCENDING)])
-        if latest_record:
-            return latest_record['timestamp']
-        return None
+        earlist_record = self.collection.find_one({'instId': inst_id, 'bar': bar}, sort=[('timestamp', pymongo.ASCENDING)])
+        if latest_record and earlist_record:
+            # a, b
+            return latest_record['timestamp'], earlist_record['timestamp']
+        return None, None
+    
+    def post_data_clean(self):
+        pass
 
     def insert_data_to_mongodb(self, data):
         if not data.empty:
@@ -73,8 +65,8 @@ class CryptoDataUpdater:
         return result
 
     def fetch_kline_data(self, inst_id: str, bar: str, initial_delay=1):
-        # end_timestamp = self.newest_data_ts(inst_id, bar)
-
+        # Check DB for existing data
+        db_b, db_a = self.find_bounds(inst_id, bar)
         # Initially, 'before' is None to fetch the latest data
         a = None
         b = None
@@ -144,17 +136,6 @@ class CryptoDataUpdater:
                 sleep_time = min(max_sleep_time, sleep_time + sleep_adjustment_factor)
                 time.sleep(sleep_time)
 
-
-
-    @staticmethod
-    def today(tushare_format=False):
-        if tushare_format:
-            return datetime.today().strftime("%Y%m%d")
-        return datetime.today().strftime("%Y-%m-%d")
-
-    @staticmethod
-    def ts_to_date(ts):
-        return datetime.fromtimestamp(ts, datetime).strftime('%Y-%m-%d %H:%M:%S')
     def update_data(self):
         pair_list = self.get_all_coin_pairs()
         # pair_list = ["BTC-USDT-SWAP"]
