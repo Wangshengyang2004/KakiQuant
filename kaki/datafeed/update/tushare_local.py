@@ -5,7 +5,7 @@ import os
 today = '20240223'
 savepath = os.path.join(find_and_add_project_root(), "data/stock_data/")
 
-tushare_token ='31ebe0477fee0f87bc2f0a7fe4829ccda36b4e9167c4be57d92ea428'
+tushare_token ='d689cb3c1d8c8a618e49ca0bb64f4d6de2f70e28ab5f76a867b31ac7'
 pro=ts.pro_api(tushare_token)
 stock_basic = pro.stock_basic(fields='ts_code')
 tscode = stock_basic['ts_code']
