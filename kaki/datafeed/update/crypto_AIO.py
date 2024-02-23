@@ -14,7 +14,7 @@ import numpy as np
 
 class CryptoDataUpdater:
     def __init__(self):
-        self.client = MongoClient('192.168.31.120', 27017)
+        self.client = MongoClient('localhost', 27017)
         self.db = self.client.crypto
         self.collection = self.db.crypto_kline
         self.base_url = "https://www.okx.com/api/v5/market/history-candles"
@@ -56,9 +56,10 @@ class CryptoDataUpdater:
         spot_result = publicDataAPI.get_instruments(instType="SPOT")
         swap_result = publicDataAPI.get_instruments(instType="SWAP")
         return [i["instId"] for i in spot_result["data"]] + [i["instId"] for i in swap_result["data"]]
+    
     def process_kline(self, data, inst_id, bar):
         df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'].astype(int), unit='ms')
+        df['timestamp'] = pd.to_datetime(df['timestamp'].astype(np.int64), unit='ms')
         numeric_fields = ['open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm']
         for field in numeric_fields:
             df[field] = pd.to_numeric(df[field], errors='coerce')
