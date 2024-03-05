@@ -167,3 +167,4 @@ data/
 .data
 **/output/*
 **/output-full/*
+./kaki/notebooks/output/*

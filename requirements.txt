@@ -11,3 +11,6 @@ seaborn
 openfe
 tqdm
 python-okx
+motor
+aiohttp
+typing
