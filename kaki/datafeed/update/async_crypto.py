@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import numpy as np
 import typing
 import aiohttp
+import time
 
 class AsyncCryptoDataUpdater:
     def __init__(self, max_concurrent_requests = 5) -> None:
@@ -83,16 +84,38 @@ class AsyncCryptoDataUpdater:
         else:
             return obj
         
+    async def check_existing_data(self, inst_id: str, bar: str) -> np.int64:
+        """
+        Finds the latest timestamp in the MongoDB collection.
+        """
+        collection = self.db[f"kline-{bar}"]
+        latest_doc = collection.find({'instId': inst_id}, {'timestamp': 1}).sort('timestamp', -1).limit(1)
+        latest_timestamp = None
+        for doc in latest_doc:
+            latest_timestamp = doc['timestamp']
+        # Convert datetime timestamp to timestamp in milliseconds in np.int64 format
+        return np.int64(latest_timestamp.timestamp() * 1000) if latest_timestamp else np.int64(0)
 
-    async def fetch_kline_data(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
+    async def check_missing_data(self, inst_id, bar):
+        """
+        Checks if there is missing data in the MongoDB collection.
+        """
+        collection = self.db[f"kline-{bar}"]
+        latest_doc = collection.find({'instId': inst_id}, {'timestamp': 1}).sort('timestamp', -1)
+        # Get all of them and convert to pd.DataFrame
+        df = pd.DataFrame(await latest_doc.to_list(length=None))
+        # Check the timeseries is continuous
+        return df['timestamp'].diff().dt.total_seconds().dropna().eq(60).all()
         
+    async def fetch_kline_data(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
+        collection_latest = self.check_existing_data(inst_id, bar)
         latest_ts = await self.now_ts(inst_id, bar)
         a = latest_ts
         b : np.int64
         
         is_first_time = True
         # Fetch until no more data is returned
-        while True:
+        while True and b > collection_latest:
             try:
                 params = {
                     'instId': inst_id,
@@ -126,7 +149,7 @@ class AsyncCryptoDataUpdater:
                                     b = a - time_interval - np.int64(4) + np.int64(random.randint(1, 10)*2)
                     
                             elif response.status == 429:
-                                logging.info(f"Too many requests for {bar} - {inst_id}.")
+                                logging.debug(f"Too many requests for {bar} - {inst_id}.")
                                 # await asyncio.sleep(sleep_time/10)
                             else:
                                 logging.error(f"Failed to fetch data with status code {response.status}")

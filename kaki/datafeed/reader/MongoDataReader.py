@@ -3,35 +3,32 @@ from pymongo import MongoClient
 import logging
 from dotenv import load_dotenv
 from datetime import datetime
+from kaki.utils.check_date import date_to_datetime
+from typing import Union, Optional
+import pandas as pd
+load_dotenv("../config/db.env")
 
-load_dotenv("../config/config.env")
-
-@dataclass
-class MongoTimestamp:
-    timestamp: datetime
-
-    def mongo_to_python(self) -> str:
-        return self.timestamp.strftime('%Y-%m-%d %H:%M:%S')
-
-    @staticmethod
-    def python_to_mongo(timestamp_str: str) -> datetime:
-        return datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
-
-class MongoDataReader:
-    def __init__(self, db_name, collection_name):
+class DownloadData:
+    def __init__(self, target: str) -> None:
         self.client = MongoClient()  # Assume this is correctly configured to connect to your MongoDB
-        self.db = self.client[db_name]
-        self.collection = self.db[collection_name]
-        self.range = self.get_collection_date_range()
+        self.db = self.client[target]
+        self.target = target
+    def download(self, symbol: Union[str, None] = "BTC-USDT-SWAP", bar: str = "1D", start_date:str|None = None, end_date: str|None = None, fields=None):
+        if start_date is not None:
+            start_date = date_to_datetime(start_date)
+        if end_date is not None:
+            end_date = date_to_datetime(end_date)
+        if self.target == "crypto":
+            collection = self.db[f"kline-{bar}"]
 
-    def get_data(self, start_date, end_date, fields=None):
-        start_date = MongoTimestamp.python_to_mongo(start_date)
-        end_date = MongoTimestamp.python_to_mongo(end_date)
-        query = {"timestamp": {"$gte": start_date, "$lte": end_date}}
-
+        if start_date is None and end_date is None:
+            query = {
+                    "instId": symbol,
+                    "bar": bar}
+        print(query)
         projection = {}
         if fields == "full":
-            projection = {}  # MongoDB returns all fields if projection is empty
+            projection = {"_id": 0}  # MongoDB returns all fields if projection is empty
         elif fields is None:
             projection = {"_id": 0, "open": 1, "low": 1, "high": 1, "close": 1, "volume": 1}  # Default OLHCV fields
         elif isinstance(fields, list):
@@ -45,14 +42,16 @@ class MongoDataReader:
         else:
             raise ValueError("Invalid fields argument. Must be 'full', None, or a list of field names.")
 
-        cursor = self.collection.find(query, projection)
-        return list(cursor)
+        cursor = collection.find(query, projection)
+        # Return pd.DataFrame
+        return pd.DataFrame(list(cursor))
+        
 
-    def get_collection_date_range(self):
+    def get_collection_date_range(self, collection):
         pipeline = [
             {"$group": {"_id": None, "start_date": {"$min": "$timestamp"}, "end_date": {"$max": "$timestamp"}}}
         ]
-        result = list(self.collection.aggregate(pipeline))
+        result = list(collection.aggregate(pipeline))
         if result:
             start_date = result[0]['start_date']
             end_date = result[0]['end_date']
@@ -66,9 +65,7 @@ class MongoDataReader:
 # This will return data within the specified range with the default OLHCV fields.
 
 if __name__ == "__main__":
-    reader = MongoDataReader('crypto_db', 'ETH-USDT-1m')
-    data = reader.get_data('2023-01-01', '2023-01-31', fields=None)
+    reader = DownloadData('crypto')
+    data = reader.download(fields="full")
     print(data)
-    print(reader.range)
-    # This will return data within the specified range with the default OLHCV fields.
-    # The range will be printed as well.
+    data.plot(x='timestamp', y='close')

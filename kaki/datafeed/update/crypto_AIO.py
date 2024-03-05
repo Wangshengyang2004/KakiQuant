@@ -27,10 +27,6 @@ class CryptoDataUpdater:
             'Connection': 'keep-alive'
         }
 
-    async def start_session(self):
-        if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
-
     def set_mongodb_index(self) -> None:
         self.collection.create_index([("instId", pymongo.ASCENDING), ("bar", pymongo.ASCENDING), ("timestamp", pymongo.ASCENDING)], unique=True)
 

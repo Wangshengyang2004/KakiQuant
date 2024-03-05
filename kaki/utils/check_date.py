@@ -8,9 +8,6 @@ def today(tushare_format=False):
         return datetime.date.today().strftime("%Y%m%d")
     return datetime.date.today()
 
-def current_timestamp():
-    return datetime.time.microsecond()
-
-
-if __name__ == "__main__":
-    print(today(), current_timestamp())
+def date_to_datetime(date: str):
+    """Converts a date to a datetime object with time set to 00:00:00."""
+    return datetime.datetime(date.year, date.month, date.day)
