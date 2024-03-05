@@ -1,10 +1,8 @@
-from dataclasses import dataclass
 from pymongo import MongoClient
 import logging
 from dotenv import load_dotenv
-from datetime import datetime
 from kaki.utils.check_date import date_to_datetime
-from typing import Union, Optional
+from typing import Union
 import pandas as pd
 load_dotenv("../config/db.env")
 

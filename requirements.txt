@@ -14,3 +14,10 @@ python-okx
 motor
 aiohttp
 typing
+tsfresh
+fastapi
+streamlit
+scipy
+statsmodels
+tqdm
+finplot
