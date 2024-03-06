@@ -34,4 +34,60 @@ def get_client_str(db_type="mongodb"):
     if db_type == "dolphindb":
         pass
 
+def mongodb_general_info(client) -> dict:
+    pass
 
+def get_collection_date_range(collection, instId, bar):
+    """
+    Returns the earliest (start) and latest (end) timestamps for a specific instId and bar size
+    in the specified MongoDB collection.
+    
+    Parameters:
+    - collection: A pymongo collection object.
+    - instId: The instrument ID to filter documents by.
+    - bar: The bar size to filter documents by.
+    
+    Returns:
+    - A tuple containing the start and end timestamps.
+    """
+    # Filter documents by instId and bar, then aggregate to find min and max timestamps
+    pipeline = [
+        {
+            "$match": {
+                "instId": instId,
+                "bar": bar
+            }
+        },
+        {
+            "$group": {
+                "_id": None,
+                "start_date": {"$min": "$timestamp"},
+                "end_date": {"$max": "$timestamp"}
+            }
+        }
+    ]
+    
+    result = list(collection.aggregate(pipeline))
+    
+    if result:
+        start_date = result[0]['start_date']
+        end_date = result[0]['end_date']
+        return start_date, end_date
+    else:
+        return None, None
+    
+    
+if __name__ == "__main__":
+    client = pymongo.MongoClient('mongodb://192.168.31.120:27017/')  # Adjust as needed
+    db = client['crypto']  # Your database name
+    collection = db['crypto_kline']  # Your collection name
+
+    instId = "BTC-USDT"  # Example instrument ID
+    bar = "1m"  # Example bar size
+
+    start_date, end_date = get_collection_date_range(collection, instId, bar)
+    if start_date and end_date:
+        print(f"The earliest document for {instId} {bar} is from: {start_date}")
+        print(f"The latest document for {instId} {bar} is from: {end_date}")
+    else:
+        print(f"No documents found in the collection for {instId} {bar}.")

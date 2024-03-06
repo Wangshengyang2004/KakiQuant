@@ -21,3 +21,4 @@ scipy
 statsmodels
 tqdm
 finplot
+mplfinance
