@@ -39,6 +39,6 @@ def plot_corrhmap(data: pd.DataFrame) -> None:
     
 if __name__ == "__main__":
     from kaki.kkdatac.crypto import get_crypto_price
-    df = get_crypto_price(target='crypto', instId='ETH-USDT-SWAP', bar='1D')
+    df = get_crypto_price(instId='ETH-USDT-SWAP', bar='1D')
     plot_kline(df)
     plot_kline(df, method="finp")

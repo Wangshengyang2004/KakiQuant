@@ -22,3 +22,4 @@ statsmodels
 tqdm
 finplot
 mplfinance
+akshare
