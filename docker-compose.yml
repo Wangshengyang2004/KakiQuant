@@ -14,7 +14,7 @@ services:
   mongo:
     image: mongo:latest
     ports:
-      - "27017:27017" # Expose MongoDB port
+      - "37017:27017" # Expose MongoDB port
     volumes:
       - mongodata:/data/db
 
