@@ -37,7 +37,7 @@ def plot_corrhmap(data: pd.DataFrame) -> None:
     # plot the heatmap
     sns.heatmap(corr)
     
-if "__name__" == "__main__":
+if __name__ == "__main__":
     from kaki.kkdatac.crypto import get_price
     df = get_price(target='crypto', instId='ETH-USDT-SWAP', bar='1D')
     plot_kline(df)
