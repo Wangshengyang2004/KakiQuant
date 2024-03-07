@@ -5,8 +5,8 @@ import pandas as pd
 import seaborn as sns
 
 
-def plot_kline(data: pd.DataFrame, type='candle', aio=True, method="mpf"):
-    data.set_index('timestamp', inplace=True)
+def plot_kline(df: pd.DataFrame, type='candle', aio=True, method="mpf"):
+    data = df.set_index('timestamp')
     if method == "mpf":
         # Check the row number of the dataframe
         rows = len(data.index)
