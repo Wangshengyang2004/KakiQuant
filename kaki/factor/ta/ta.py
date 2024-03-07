@@ -39,7 +39,7 @@ def ATR(data, period=14):
 
 #计算技术指标
 def cal_ta_factors(df:pd.DataFrame):
-    df["SLOPE"] = talib.LINEARREG_SLOPE(df['close'.values], timeperiod=5)
+    df["SLOPE"] = talib.LINEARREG_SLOPE(df['close'].values, timeperiod=5)
     df["DEMA"] = talib.DEMA(df["close"], timeperiod=30)
     df["SMA"] = talib.SMA(df["close"], timeperiod=30)
     df["EMA30"] = talib.EMA(df["close"], timeperiod=30)

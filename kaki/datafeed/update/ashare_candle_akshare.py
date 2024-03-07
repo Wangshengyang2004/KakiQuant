@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 # MongoDB connection
 client = MongoClient(get_client_str())  # Update with your MongoDB connection string
+print(get_client_str())
 db = client["ashare_tushare"]  # Database name
 collection = db["kline"]  # Collection name
 
@@ -41,7 +42,7 @@ def download_stocks(stock_list, start_date=None, end_date=None, num_workers=5):
         for future in futures:
             future.result()
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     # Get stock list
     stock_list_df = ak.stock_zh_a_spot_em()
     stock_list = stock_list_df["代码"].tolist()

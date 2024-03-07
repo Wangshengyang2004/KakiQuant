@@ -48,16 +48,17 @@ def get_crypto_kline(collection, instId, bar, start_date=None, end_date=None):
 
 # Example usage
 if __name__ == "__main__":
-    client = MongoClient('mongodb://192.168.31.120:27017/')
+    client = MongoClient('mongodb://localhost:27017/')
     db = client['crypto']  # Adjust as per your MongoDB setup
     collection = db['crypto_kline']  # Adjust as per your MongoDB setup
     
-    instId = "BTC-USDT"
-    bar = "3m"
+    instId = "SATS-USDT"
+    bar = "1m"
     # start_date = "2021-01-01"
     # end_date = "2021-12-31"
     
     df = get_crypto_kline(collection, instId, bar,)
+    print(df)
     df.set_index('timestamp', inplace=True)
     df.sort_index(inplace=True)
 

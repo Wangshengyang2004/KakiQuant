@@ -96,7 +96,7 @@ def main(data):
                                             title='SVM 择时策略净值')
     plt.show()
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
     reader = DownloadData(target="crypto")
     data = reader.download(symbol="BTC-USDT-SWAP", bar= "1m", fields="full")
     data = preprocess_crypto(data)
