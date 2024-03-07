@@ -6,6 +6,7 @@ import seaborn as sns
 
 
 def plot_kline(data: pd.DataFrame, type='candle', aio=True, method="mpf"):
+    data.set_index('timestamp', inplace=True)
     if method == "mpf":
         # Check the row number of the dataframe
         rows = len(data.index)
@@ -22,7 +23,6 @@ def plot_kline(data: pd.DataFrame, type='candle', aio=True, method="mpf"):
                         ylabel='Price', volume = True, mav=(7,12),savefig=savefig_options)
                 i += 150
     elif method == 'finp':
-        data.set_index('timestamp', inplace=True)
         ax,ax2 = fplt.create_plot('Candlestick Chart', rows=2)
         fplt.candlestick_ochl(data[['open', 'close', 'high', 'low']], ax=ax)
         fplt.volume_ocv(data[["open", "close", "volume"]], ax=ax2)
