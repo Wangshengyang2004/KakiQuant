@@ -12,7 +12,7 @@ import aiohttp
 import time
 
 class AsyncCryptoDataUpdater:
-    def __init__(self, max_concurrent_requests = 5) -> None:
+    def __init__(self, max_concurrent_requests = 3) -> None:
         self.client = AsyncIOMotorClient('mongodb://localhost:27017')
         self.db = self.client.crypto
         self.market_url = "https://www.okx.com/api/v5/market/history-candles"

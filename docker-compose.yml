@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "80:80" # Expose the port your application runs on
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/mydatabase
+    depends_on:
+      - mongo
+    volumes:
+      - .:/usr/src/app
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017" # Expose MongoDB port
+    volumes:
+      - mongodata:/data/db
+
+volumes:
+  mongodata:
