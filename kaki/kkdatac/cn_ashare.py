@@ -21,3 +21,6 @@ def get_trading_dates(start_date=None, end_date=None) -> pd.TimedeltaIndex:
 
 def get_previous_trading_date(this_date:str, nums_prev:int):
     pass
+
+def get_ashare_price():
+    pass

@@ -42,9 +42,9 @@ class DownloadData:
 
         cursor = collection.find(query, projection)
         # Return pd.DataFrame
-        return pd.DataFrame(list(cursor))
+        return pd.DataFrame(list(cursor)).sort_values(by='timestamp', ascending=True)
         
-
+        
     def get_collection_date_range(self, collection):
         pipeline = [
             {"$group": {"_id": None, "start_date": {"$min": "$timestamp"}, "end_date": {"$max": "$timestamp"}}}

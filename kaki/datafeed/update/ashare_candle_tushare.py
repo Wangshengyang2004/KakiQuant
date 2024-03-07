@@ -3,39 +3,12 @@ from tqdm import tqdm
 import pandas as pd
 from pymongo import MongoClient
 from datetime import datetime
+from kaki.utils.check_db import get_client_str
 
 # MongoDB connection
-client = MongoClient("mongodb://192.168.31.120:27017/")  # Update with your MongoDB connection string
-db = client["ashare_candle"]  # Database name
-collection = db["daily_data"]  # Collection name
-
-# Function to fetch or update stock data from MongoDB
-def get_stock_data_from_db(stock_code, start_date, end_date):
-    # Convert start_date and end_date to datetime objects
-    start_date_dt = datetime.strptime(start_date, "%Y%m%d")
-    end_date_dt = datetime.strptime(end_date, "%Y%m%d")
-
-    # Find the existing range in the database
-    earliest_record = collection.find_one({"symbol": stock_code}, sort=[("date", 1)])
-    latest_record = collection.find_one({"symbol": stock_code}, sort=[("date", -1)])
-
-    if earliest_record and latest_record:
-        # Convert to datetime for comparison
-        earliest_date = earliest_record['date']
-        latest_date = latest_record['date']
-
-        # Adjust the start and end dates based on existing data
-        if start_date_dt < earliest_date:
-            update_stock_data(stock_code, start_date, earliest_date.strftime("%Y%m%d"))
-        if end_date_dt > latest_date:
-            update_stock_data(stock_code, latest_date.strftime("%Y%m%d"), end_date)
-    else:
-        # No existing data, fetch for the entire range
-        update_stock_data(stock_code, start_date, end_date)
-
-    # Retrieve complete data from DB for the original range
-    complete_data = pd.DataFrame(list(collection.find({"symbol": stock_code, "date": {"$gte": start_date_dt, "$lte": end_date_dt}})))
-    return complete_data
+client = MongoClient(get_client_str())  # Update with your MongoDB connection string
+db = client["ashare_tushare"]  # Database name
+collection = db["kline"]  # Collection name
 
 def update_stock_data(stock_code, start_date, end_date):
     # Fetch new data for the specified range
@@ -56,22 +29,6 @@ def update_stock_data(stock_code, start_date, end_date):
         # Insert new data
         collection.insert_many(stock_data_df.to_dict('records'))
     
-# Function to calculate MACD
-def calculate_macd(df, short_period=12, long_period=26, signal_period=9):
-    df['EMA12'] = df['收盘'].ewm(span=short_period, adjust=False).mean()
-    df['EMA26'] = df['收盘'].ewm(span=long_period, adjust=False).mean()
-    df['MACD'] = df['EMA12'] - df['EMA26']
-    df['Signal_Line'] = df['MACD'].ewm(span=signal_period, adjust=False).mean()
-    return df
-
-# Function to check for gold crossover
-def has_gold_crossover(df):
-    if len(df) < 2:
-        return False
-    # Checking if the latest MACD crossed above the latest Signal Line
-    # and the previous MACD was below the previous Signal Line
-    return df.iloc[-1]['MACD'] > df.iloc[-1]['Signal_Line'] and df.iloc[-2]['MACD'] < df.iloc[-2]['Signal_Line']
-
 # Get stock list
 stock_list_df = ak.stock_zh_a_spot_em()
 stock_list = stock_list_df["代码"].tolist()

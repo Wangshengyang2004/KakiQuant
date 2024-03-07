@@ -12,7 +12,7 @@ def get_swap_pairs() -> list:
 def get_spot_pairs() -> list:
     pass
 
-def get_price(target:str, instId:str, bar:str, start_date=None, end_date=None, fields='full'):
-    reader = DownloadData(target)
+def get_crypto_price(instId:str, bar:str, start_date=None, end_date=None, fields='full'):
+    reader = DownloadData("crypto")
     df = reader.download(instId, bar, start_date, end_date, fields)
     return df

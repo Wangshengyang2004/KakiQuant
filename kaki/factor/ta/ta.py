@@ -1,7 +1,6 @@
 import numpy as np 
 import pandas as pd
 import talib
-import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -39,7 +38,8 @@ def ATR(data, period=14):
 
 
 #计算技术指标
-def cal_ta_factors(df):
+def cal_ta_factors(df:pd.DataFrame):
+    df["SLOPE"] = talib.LINEARREG_SLOPE(df['close'.values], timeperiod=5)
     df["DEMA"] = talib.DEMA(df["close"], timeperiod=30)
     df["SMA"] = talib.SMA(df["close"], timeperiod=30)
     df["EMA30"] = talib.EMA(df["close"], timeperiod=30)
@@ -79,5 +79,5 @@ def cal_ta_factors(df):
     df["ADX"] = talib.ADX(df["high"], df["low"], df["close"], timeperiod=14)
     df['Bollinger_Up'], df['Bollinger_Down'] = BBANDS(df, period=20)
     df['ATR_14'] = ATR(df, period=14)
-
+    df['WR'] = talib.WILLR(df['high'].values, df['low'].values, df['close'].values, timeperiod=7)
     return df
