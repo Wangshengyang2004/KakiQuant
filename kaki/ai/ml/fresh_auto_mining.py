@@ -22,7 +22,7 @@ def preprocess_crypto(data):
     data['date'] = data['timestamp']
     data.drop(columns=['timestamp','confirm'], inplace=True)
     data = data.reset_index(drop=True)
-    return cal_ta_factors(data)
+    return cal_ta_factors(data).sort_index().fillna(method='ffill').dropna()
      
 def main(data):
     data_roll = roll_time_series(data, column_id='code', column_sort='date', max_timeshift=20, min_timeshift=5).drop(columns=['code'])  
