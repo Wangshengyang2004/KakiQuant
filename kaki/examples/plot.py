@@ -52,7 +52,7 @@ if __name__ == "__main__":
     db = client['crypto']  # Adjust as per your MongoDB setup
     collection = db['crypto_kline']  # Adjust as per your MongoDB setup
     
-    instId = "SATS-USDT"
+    instId = "BTC-USDT-SWAP"
     bar = "1m"
     # start_date = "2021-01-01"
     # end_date = "2021-12-31"
