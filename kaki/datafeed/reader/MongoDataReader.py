@@ -1,17 +1,21 @@
 from pymongo import MongoClient
 import logging
-from dotenv import load_dotenv
 from kaki.utils.check_date import date_to_datetime
-from typing import Union
+from kaki.utils.check_db import get_client_str
+from typing import Optional
 import pandas as pd
-load_dotenv("../config/db.env")
-
+from pymongo.collection import Collection
+import matplotlib.pyplot as plt
 class DownloadData:
     def __init__(self, target: str) -> None:
-        self.client = MongoClient()  # Assume this is correctly configured to connect to your MongoDB
+        self.client = MongoClient(get_client_str())
         self.db = self.client[target]
         self.target = target
-    def download(self, symbol: Union[str, None] = "BTC-USDT-SWAP", bar: str = "1D", start_date:str|None = None, end_date: str|None = None, fields=None):
+    
+    def download(self, symbol: str = "BTC-USDT-SWAP", bar: str = "1D",
+                 start_date: Optional[str | pd.Timestamp] = None, 
+                 end_date: Optional[str | pd.Timestamp] = None, fields=None) -> pd.DataFrame:
+        
         if start_date is not None:
             start_date = date_to_datetime(start_date)
         if end_date is not None:
@@ -22,13 +26,17 @@ class DownloadData:
         if start_date is None and end_date is None:
             query = {
                     "instId": symbol,
-                    "bar": bar}
-        print(query)
+                    "bar": bar
+                    }
+            
+        logging.info(query)
         projection = {}
         if fields == "full":
-            projection = {"_id": 0}  # MongoDB returns all fields if projection is empty
+            projection = {}  # MongoDB returns all fields, including the objectId if projection is empty
         elif fields is None:
-            projection = {"_id": 0, "open": 1, "low": 1, "high": 1, "close": 1, "volume": 1}  # Default OLHCV fields
+            projection = {"_id": 0}  # Return all fields except the objectId
+        elif fields == "ohlcv":
+            projection = {"_id": 0, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1} # Return OLHCV fields only
         elif isinstance(fields, list):
             projection = {"_id": 0}
             for field in fields:
@@ -41,13 +49,33 @@ class DownloadData:
             raise ValueError("Invalid fields argument. Must be 'full', None, or a list of field names.")
 
         cursor = collection.find(query, projection)
-        # Return pd.DataFrame
         return pd.DataFrame(list(cursor)).sort_values(by='timestamp', ascending=True)
         
-        
-    def get_collection_date_range(self, collection):
+    def describe(self):
+        """
+        Returns general information about the MongoDB database and collection.
+        """
+        return [dict(self.db.command("dbstats"), **self.get_collection_info()),
+                
+        {
+            "database": self.db.name,
+            "collection_names": self.db.list_collection_names(),
+            "collection_count":len(self.db.list_collection_names()),
+        }
+        ]
+
+    def get_collection_info(self):
+        """
+        Returns general information about the collection.
+        """
+        collection_info = {}
+        for collection in self.db.list_collection_names():
+            collection_info[collection] = self.db[collection].count_documents({})
+        return collection_info
+    
+    def get_collection_date_range(self, collection: Collection, instId: str, bar: str) -> list:
         pipeline = [
-            {"$group": {"_id": None, "start_date": {"$min": "$timestamp"}, "end_date": {"$max": "$timestamp"}}}
+            {"$group": {"_id": None, "start_date": {"$min": "$timestamp"}, "end_date": {"$max": "$timestamp"}, "instId": {"$first": "$instId"}, "bar": {"$first": "$bar"}}}
         ]
         result = list(collection.aggregate(pipeline))
         if result:
@@ -57,13 +85,9 @@ class DownloadData:
         else:
             return [None, None]
 
-# Example usage:
-# reader = MongoDataReader('your_db_name', 'your_collection_name')
-# data = reader.get_data('2023-01-01', '2023-01-31', fields=None)
-# This will return data within the specified range with the default OLHCV fields.
-
 if __name__ == "__main__":
     reader = DownloadData('crypto')
-    data = reader.download(fields="full")
+    data = reader.download()
     print(data)
     data.plot(x='timestamp', y='close')
+    plt.show()
