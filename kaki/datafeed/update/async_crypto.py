@@ -21,15 +21,14 @@ class AsyncCryptoDataUpdater:
         self.bar_sizes = bar_sizes
         self.market_url = "https://www.okx.com/api/v5/market/history-candles"
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3",
-            "Accept": "application/json",
+            "User-Agent": "PostmanRuntime/7.36.3",
+            "Accept": "*/*",
+            "b-locale": "zh_CN",
             "Accept-Encoding": "gzip, deflate, br",
-            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
             "Connection": "keep-alive",
             "Host": "www.okx.com",
             "Referer": "https://www.okx.com/",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
         }
         self.session: Optional[aiohttp.ClientSession] = None
         self.semaphore = asyncio.Semaphore(max_concurrent_requests)
@@ -120,6 +119,7 @@ class AsyncCryptoDataUpdater:
         latest_doc = collection.find({'instId': inst_id}, {'timestamp': 1}).sort('timestamp', -1).limit(1)
         latest_timestamp = await latest_doc.to_list(length=1)
         latest_timestamp = latest_timestamp[0]['timestamp'] if latest_timestamp else None
+        logging.info(f"Found existing data for {inst_id} {bar} up to {latest_timestamp}.")
         # Convert datetime timestamp to timestamp in milliseconds in np.int64 format
         return np.int64(latest_timestamp.timestamp() * 1000) if latest_timestamp else np.int64(0)
 
@@ -191,13 +191,14 @@ class AsyncCryptoDataUpdater:
 
     async def fetch_kline_data(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
         collection_latest = await self.check_existing_data(inst_id, bar)
+        logging.info(f"Found existing data for {inst_id} {bar} up to {collection_latest}.")
         latest_ts = await self.now_ts(inst_id, bar)
         a = latest_ts
         b : np.int64 = a
         
         is_first_time = True
         # Fetch until no more data is returned
-        while True and b > collection_latest:
+        while b > collection_latest:
             try:
                 params = {
                     'instId': inst_id,
@@ -217,7 +218,7 @@ class AsyncCryptoDataUpdater:
                                         return None
                                     else:
                                         df = pd.DataFrame(result['data'], columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm'])
-                                        df['timestamp'] = pd.to_datetime(df['timestamp'].astype(np.int64), unit='ms')
+                                        df['timestamp'] = pd.to_datetime(df['timestamp'].values.astype(np.int64), unit='ms', utc=True).tz_convert('Asia/Shanghai')
                                         numeric_fields = ['open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm']
                                         for field in numeric_fields:
                                             df[field] = pd.to_numeric(df[field], errors='coerce')
@@ -226,7 +227,10 @@ class AsyncCryptoDataUpdater:
                                         await self.insert_data_to_mongodb(f"kline-{bar}", df)  # Adjust as per your actual method signature
                                         logging.info(f"Successfully inserted data for {inst_id} {bar}.")
                                         a = np.int64(result['data'][-1][0]) - np.int64(1)
+                                        
                                         if is_first_time:
+                                            # print(result['data'][0][0])
+                                            print(df)
                                             time_interval = abs(np.int64(result['data'][0][0]) - a)
                                             is_first_time = False
                                         b = a - time_interval - np.int64(4) + np.int64(random.randint(1, 10)*2)
@@ -264,5 +268,5 @@ class AsyncCryptoDataUpdater:
         await self.setup_check_mongodb(self.db)
 
 if __name__ == "__main__":
-    updater = AsyncCryptoDataUpdater(bar_sizes=['1D','1W'])
+    updater = AsyncCryptoDataUpdater(bar_sizes=['1m'])
     asyncio.run(updater.main())
