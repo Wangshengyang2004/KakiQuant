@@ -225,7 +225,7 @@ class AsyncCryptoDataUpdater:
                                         df['instId'] = inst_id
                                         df['bar'] = bar
                                         await self.insert_data_to_mongodb(f"kline-{bar}", df)  # Adjust as per your actual method signature
-                                        logging.info(f"Successfully inserted data for {inst_id} {bar} from {df['timestamp'][0]} to {df['timestamp'][0]}.")
+                                        logging.info(f"Successfully inserted data for {inst_id} {bar} from {df['timestamp'][0]} to {df['timestamp'][-1]}.")
                                         a = np.int64(result['data'][-1][0]) - np.int64(1)
                                         
                                         if is_first_time:
