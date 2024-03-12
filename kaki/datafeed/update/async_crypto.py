@@ -225,7 +225,7 @@ class AsyncCryptoDataUpdater:
                                         df['instId'] = inst_id
                                         df['bar'] = bar
                                         await self.insert_data_to_mongodb(f"kline-{bar}", df)  # Adjust as per your actual method signature
-                                        logging.info(f"Successfully inserted data for {inst_id} {bar} from {df['timestamp'][0]} to {df['timestamp'][-1]}.")
+                                        logging.info(f"Successfully inserted data for {inst_id} {bar} from {df['timestamp'].iloc[0]} to {df['timestamp'].iloc[-1]}.")
                                         a = np.int64(result['data'][-1][0]) - np.int64(1)
                                         
                                         if is_first_time:
@@ -246,7 +246,7 @@ class AsyncCryptoDataUpdater:
 
     async def initialize_update(self):
         # List of restaurants could be big, think in promise of plying across the sums as detailed.
-        coin_pairs = await self.get_all_coin_pairs(filter="BTC-USDT")
+        coin_pairs = await self.get_all_coin_pairs(filter="USDT")
         logging.info(f"Fetching data for {len(coin_pairs)} coin pairs.\n Pairs: {coin_pairs}")
         bar_sizes = self.bar_sizes
         tasks = []
@@ -266,5 +266,5 @@ class AsyncCryptoDataUpdater:
         await self.setup_check_mongodb(self.db)
 
 if __name__ == "__main__":
-    updater = AsyncCryptoDataUpdater(bar_sizes=['1m'])
+    updater = AsyncCryptoDataUpdater()
     asyncio.run(updater.main())

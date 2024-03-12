@@ -42,7 +42,7 @@ def download_one_full(stock_code, freq:str ='1D'):
 def download_stocks(stock_list, num_workers=5):
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = []
-        bar_sizes = ['1m', '3m', '5m', '15m', '30m', '60m','1D', '1W']
+        bar_sizes = ['1D', '1W']
         for stock_code in stock_list:
             for bar in bar_sizes:
                 futures.append(executor.submit(download_one_full, stock_code, freq=bar))
