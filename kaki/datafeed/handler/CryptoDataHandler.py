@@ -1,302 +1,292 @@
-import time
-import random
-from BaseDataHandler import BaseDataHandler
-import okx.MarketData as MarketData
-import sys 
-import os
-from datetime import datetime
-import requests
-from kaki.utils.check_gpu import enable_cudf_acceleration
-from kaki.utils.check_date import today
-import logging 
-# Try GPU acceleration
-enable_cudf_acceleration()
+"""
+Update the crypto data in MongoDB asynchronously using aiohttp and asyncio.
+Full data, and will run everyday to update the data.
+"""
 import pandas as pd
+from datetime import date, datetime
+import logging
+import asyncio
+import random
+import aiohttp
+import okx.PublicData as PublicData
+from motor.motor_asyncio import AsyncIOMotorClient
+import numpy as np
+from typing import Optional, Iterable, Tuple, TypeAlias
+import aiohttp
+from collections.abc import Sequence
+from kaki.utils.check_db import insert_data_to_mongodb
+
+# Create a TypeAlias for timestamp format
+TIMESTAMP = np.int64
+
+class AsyncCryptoDataUpdater:
+    def __init__(self, bar_sizes: Iterable[str] = ['1m', '3m', '5m', '15m', '30m', '1H', '4H', '1D', '1W'], 
+                 max_concurrent_requests:int = 3) -> None:
+        self.client = AsyncIOMotorClient('mongodb://localhost:27017')
+        self.db = self.client.crypto
+        self.bar_sizes = bar_sizes
+        self.market_url = "https://www.okx.com/api/v5/market/history-candles"
+        self.headers = {
+            "User-Agent": "PostmanRuntime/7.36.3",
+            "Accept": "*/*",
+            "b-locale": "zh_CN",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+            "Connection": "keep-alive",
+            "Host": "www.okx.com",
+            "Referer": "https://www.okx.com/",
+        }
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.semaphore = asyncio.Semaphore(max_concurrent_requests)
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
+                            handlers=[logging.FileHandler("aiocrypto.log"), logging.StreamHandler()])
+    
+    async def drop_db(self):
+        """
+        Function to drop the whole db, here db: crypto
+        """
+        await self.client.drop_database('crypto')
+        logging.info("Dropped database 'crypto'.")
+
+    async def start_session(self):
+        if self.session is None or self.session.closed:
+            timeout = aiohttp.ClientTimeout(total=10)
+            self.session = aiohttp.ClientSession(timeout=timeout)
+    
+    async def close_session(self):
+        if self.session and not self.session.closed:
+            await self.session.close()
+
+    async def create_collections(self) -> None:
+        """
+        Create the collections in advance of the indexing function, 
+        if collection already exist, skip; if not, create them base on the list: self.bar_sizes
+        """
+        desired_col_list = [f"kline-{i}" for i in self.bar_sizes]
+        cur_col_list = await self.db.list_collection_names()
+        new_col_list = list(set(desired_col_list) - set(cur_col_list))
+        [self.db[collection_name] for collection_name in new_col_list]
+        logging.info(f"Found existing collections: {cur_col_list} \n 
+                     Desired Collections: {desired_col_list} \n 
+                     Successully created new collections:{new_col_list} \n")
+        
+        
 
 
-logging.basicConfig(level=logging.INFO)
+    async def get_all_coin_pairs(self, filter: Optional[str] = None) -> list[str]:
+        """
+        Get all coin pairs from the OKEx API.
+        Filter out the coin pairs with Regex.
+        """
+        # Wrap the synchronous calls in asyncio.to_thread to run them in separate threads
+        spot_result = await asyncio.to_thread(self._get_spot_instruments)
+        swap_result = await asyncio.to_thread(self._get_swap_instruments)
+        
+        spot_list = [i["instId"] for i in spot_result["data"]]
+        swap_list = [i["instId"] for i in swap_result["data"]]
+        all_coin_pairs = spot_list + swap_list
+        if filter:
+            return [pair for pair in all_coin_pairs if filter in pair]
+        return all_coin_pairs
 
+    def _get_spot_instruments(self):
+        publicDataAPI = PublicData.PublicAPI(flag="0")
+        return publicDataAPI.get_instruments(instType="SPOT")
 
-class CryptoDataHandler(BaseDataHandler):
-    def __init__(self, db_name:str ,collection_name:str, inst_id:str, bar:str):
-        collection_name = f"{inst_id}-{bar}".replace('/', '-').replace(' ', '')
-        super().__init__(db_name, collection_name)
-        self.flag = "0"  # Production trading:0 , demo trading:1
-        self.api_client = MarketData.MarketAPI(flag=self.flag)
-        self.inst_id = inst_id
-        self.bar = bar
+    def _get_swap_instruments(self):
+        publicDataAPI = PublicData.PublicAPI(flag="0")
+        return publicDataAPI.get_instruments(instType="SWAP")
 
-    def fetch_kline_data(self, start_date, end_date, max_retries:int=3, initial_delay:int=1, save_to_db:bool=True, return_df:bool=False):
-        # Convert start and end dates to Unix timestamp in milliseconds
-        start_timestamp = int(pd.Timestamp(start_date).timestamp()) * 1000
-        end_timestamp = int(pd.Timestamp(end_date).timestamp()) * 1000
+    async def now_ts(self, inst_id: str, bar: str) -> np.int64:
+        import datetime
+        now = datetime.datetime.now()
+        return np.int64(now.timestamp() * 1000)
+    
 
-        # Initially, 'before' is None to fetch the latest data
-        a = end_timestamp
-        b = None
-        is_First_time = True
-        all_data = pd.DataFrame()
-        while True:
-            retries = 0
-            while retries < max_retries:
-                try:
-                    result = self.api_client.get_history_candlesticks(
-                        instId=self.inst_id,
-                        before=str(b) if b else "",
-                        after=str(a),
-                        bar=self.bar
-                    )
+    def convert_ints_to_np_int64(self, obj):
+        if isinstance(obj, dict):
+            return {k: self.convert_ints_to_np_int64(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self.convert_ints_to_np_int64(v) for v in obj]
+        elif isinstance(obj, int):
+            return np.int64(obj)
+        else:
+            return obj
+    
+    async def setup_check_mongodb(self) -> None:
+        """
+        Set up compound indexes for each collection in the MongoDB database.
+        """
+        collections = await self.db.list_collection_names()
+        print(collections)
+        for collection_name in collections:
+            collection = self.db[collection_name]
+            # Check if the compound index exists, exclude the original index
+            list_of_indexes = await collection.list_indexes().to_list(length=None)
+            if not any(index['key'] == [("instId", 1), ("timestamp", 1)] for index in list_of_indexes):
+                await collection.create_index([("instId", 1), ("timestamp", 1)], unique=True)
+                logging.info(f"Created compound index for {collection_name}.")
+            else:
+                logging.info(f"Compound index for {collection_name} already exists.")
 
-                    # Check if result is empty or contains data
-                    if not result['data']:
-                        logging.info("No more data to fetch or empty data returned.")
-                        return all_data if return_df else None
+    async def check_existing_data(self, inst_id: str, bar: str) -> Sequence[TIMESTAMP | None]:
+        """
+        Finds the latest timestamp in the MongoDB collection.
+        """
+        collection = self.db[f'kline-{bar}']
+        pipeline = [
+            {
+                "$match": {
+                    "instId": inst_id,
+                    "bar": bar
+                }
+            },
+            {
+                "$group": {
+                    "start_date": {"$min": "$timestamp"},
+                    "end_date": {"$max": "$timestamp"},
+                }
+            }
+        ]
 
-                    # Process and insert data to MongoDB
-                    df = self.process_kline(result['data'])
-                    
-                    if save_to_db and isinstance(df, pd.DataFrame):
-                        self.insert_data_to_mongodb(df)
-                        logging.info("Inserting in the MongoDB Succeed")
-                    if return_df:
-                        all_data = pd.concat([all_data, df])
+        cursor =  collection.aggregate(pipeline)
+        result = await cursor.to_list(length=1)
+        if result:
+            start_datetime: datetime = result[0]['start_date']
+            end_datetime:datetime = result[0]['end_date']
+            return np.int64(start_datetime.timestamp() * 1000), np.int64(end_datetime.timestamp() * 1000)
+        else:
+            return None, None
+            
+    async def check_missing_data(self, inst_id, bar):
+        """
+        Checks if there is missing data in the MongoDB collection.
+        """
+        collection = self.db[f"kline-{bar}"]
+        latest_doc = collection.find({'instId': inst_id}, {'timestamp': 1}).sort('timestamp', -1)
+        # Get all of them and convert to pd.DataFrame
+        df = pd.DataFrame(await latest_doc.to_list(length=None))
+        # Check the timeseries is continuous
+        return df['timestamp'].diff().dt.total_seconds().dropna().eq(60).all()
+    
+    async def fix_missing_data(self, inst_id, bar):
+        """
+        Fixes missing data in the MongoDB collection.
+        """
+        collection = self.db[f"kline-{bar}"]
+        latest_doc = collection.find({'instId': inst_id}, {'timestamp': 1}).sort('timestamp', -1)
+        # Get all of them and convert to pd.DataFrame
+        df = pd.DataFrame(await latest_doc.to_list(length=None))
+        # Check the timeseries is continuous
+        if not df['timestamp'].diff().dt.total_seconds().dropna().eq(60).all():
+            # Get the missing timestamps
+            missing_ts = pd.date_range(start=df['timestamp'].min(), end=df['timestamp'].max(), freq='1min').difference(df['timestamp'].to_list())
+            # Create a new DataFrame with the missing timestamps
+            missing_df = pd.DataFrame({'timestamp': missing_ts})
+            # Insert the missing data into the collection
+            await insert_data_to_mongodb(self.db[f"kline-{bar}"], missing_df)
+            logging.info(f"Inserted {len(missing_df)} missing records into {inst_id} {bar}.")
 
-                    # Update 'before' and 'after' for the next request
-                    earliest_timestamp = int(result['data'][-1][0])
-                    latest_timestamp = int(result['data'][0][0])
-                    if is_First_time:
-                        time_interval = latest_timestamp - earliest_timestamp
-                        is_First_time = False
-                    a = earliest_timestamp
-                    b = a - time_interval - 4 + random.randint(1, 10)*2
+    async def update_early_missing(self) -> None:
+        pass
+    
+    async def update_latest_missing(self) -> None:
+        pass
+    
+    async def cvt_dic_to_df_insert(self, col_name: str, data: dict, bar: str, inst_id: str) -> None:
+        """Convert reponse data to pd.Dataframe and insert many into MongoDB
 
-                    if a <= start_timestamp:
-                        logging.info("Reached the start date.")
-                        self.df_csv = all_data
-                        del all_data
-                        if self.save_kline:
-                            self.save_kline() 
-                        return self.df_csv if return_df else None
-
-                    break
-
-                except Exception as e:
-                    logging.info(f"Error occurred: {e}")
-                    retries += 1
-                    time.sleep(initial_delay * retries)  # Exponential backoff
-                    if retries == max_retries:
-                        logging.info("Max retries reached. Exiting.")
-                        return all_data if return_df else None
-                    logging.info(f"Retrying... Attempt {retries}/{max_retries}")
-
-    def process_kline(self, data):
-        # Additional processing specific to crypto data
+        Args:
+            collection_name (str): _description_
+            data (dict): _description_
+            bar (str): _description_
+            inst_id (str): _description_
+        """
+        col = self.db[col_name]
         df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'].astype(int), unit='ms')
-        df['Date'] = df['timestamp'].dt.strftime('%Y%m%d%H%M%S')
+        df['timestamp'] = pd.to_datetime(df['timestamp'].values.astype(np.int64), unit='ms', utc=True).tz_convert('Asia/Shanghai')
         numeric_fields = ['open', 'high', 'low', 'close', 'volume', 'volCcy', 'volCcyQuote', 'confirm']
         for field in numeric_fields:
             df[field] = pd.to_numeric(df[field], errors='coerce')
-        return df
-
-    def save_kline(self):
-        filename = f"{self.inst_id}_{self.bar}_{today(tushare_format=True)}"
-        # Get the absolute save path
-        save_path = os.path.join(root_dir, "data", "crypto", "kline")
-        # Define the full file path
-        full_path = os.path.join(save_path, filename)
-        # Save the DataFrame to this path
-        self.df_csv.to_csv(full_path, index=False)
-        logging.info(f"Data saved to {full_path}")
-
-
-    # ------------------------fetch Copytrader data-------------------------- # 
-    def fetch_copytrader_data(self):
+        df['instId'] = inst_id
+        df['bar'] = bar
+        df_dict = df.to_dict('records')
+        await col.insert_many(data_dict) # type: ignore
+        logging.info(f"Inserted {len(df_dict)} new records into {col_name} asynchronously.")
+    
+    async def fetch_in_between(self, inst_id: str, bar: str, itv_earliest: TIMESTAMP, itv_latest: TIMESTAMP) -> None:
         pass
-
-    def init_copytrader(self):
-        self.current_timestamp = int(time.time())
-        self.proxies = {
-            "http": "http://localhost:7890",
-            "https": "http://localhost:7890",
-        }
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-        }
-        self.HOST = "https://www.okx.com/priapi/v5/ecotrade/public"
-        self.size = 20
-        self.start = 1
-        self.end = 20
-        self.follower_list_uri = "follow-rank?size={size}&start={start}&fullState=0&countryId=CN"
-        self.follower_list_url_list = self.assemble_url()
-        
-        logging.info("follower_list_url_list: {}".format(self.follower_list_url_list))
     
-    def assemble_url(self):
-        url_list = []
-        for i in range(self.start, self.end):
-            url_list.append(self.HOST + "/" + self.follower_list_uri.format(size=self.size, start=i))
-        return url_list
-    
-    def get_follower_list(self):
-        logging.info("Retrieving follower list")
-        follower_info = []  # 访问者信息列表
-        self.uniqueName_list = []  # 唯一名称列表
-        for url in self.follower_list_url_list:  # 遍历访问者URL列表
-            data = self._make_request(url)  # 发起请求获取数据
-            if data and len(data.get("data", [])) > 0:  # 如果数据存在且不为空
-                for user in data["data"][0]["ranks"]:  # 遍历数据中的用户列表
-                    nickname = user["nickName"],  # 访问者昵称
-                    uniqueName = user["uniqueName"],  # 唯一名称
-                    winRatio = user["winRatio"]  # 胜率
-                    yieldRatio = user["yieldRatio"]  # 收益率
-                    instruments = user["instruments"]  # 交易工具列表
-                    self.uniqueName_list.append(uniqueName)  # 将唯一名称添加到唯一名称列表
-                    follower_info.append({  # 将访客信息添加到访客信息列表
-                        "nickname": nickname,
-                        "uniqueName": uniqueName,
-                        "winRatio": winRatio,
-                        "yieldRatio": yieldRatio,
-                        "instruments": len(instruments)
-                    })
-            else:
-                logging.error("No data received or data is empty")  # 没有收到数据或数据为空
-                continue
-            time.sleep(0.1)  # 休眠0.1秒
-        return follower_info
-    
-    def get_single_copytrader_info(self, uniqueName):
-        """
-        Fetches the detailed information of a single copytrader.
-
-        :param uniqueName: str - The unique name identifier for a copytrader.
-        :return: dict - A dictionary containing the details of the copytrader.
-        """
-        uniqueName = uniqueName[0]
-        logging.info(f"Fetching info for copytrader: {uniqueName}")
-        follower_detail_uri = f"trade-info?t={self.current_timestamp}&uniqueName={uniqueName}"
-        url = f"{self.HOST}/{follower_detail_uri}"
-        data = self._make_request(url)
-        logging.info(data)
-        if data:
+    async def kine_manager(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
+        exist_earliest, exist_latest = await self.check_existing_data(inst_id, bar)
+        logging.info(f"Found existing data for {inst_id} {bar} from {exist_earliest} to {exist_latest}.") \
+            if exist_earliest != None else logging.info(f"Existing data not found for {inst_id} {bar}")
+        latest_ts = await self.now_ts(inst_id, bar)
+        a = latest_ts
+        b : np.int64 = a
+        time_interval= np.int64(0)
+        is_first_time = True
+        # Fetch until no more data is returned
+        while b > collection_latest:
             try:
-                assert len(data) != 0
-                user = data["data"][0]
-                return {
-                    "uniqueName": uniqueName,
-                    "shareRatio": user["shareRatio"],
-                    "totalFollowerNum": user["totalFollowerNum"],
-                    "followerLimit": user["followerLimit"],
-                    "followerNum": user["followerNum"]
+                params = {
+                    'instId': inst_id,
+                    'before': "" if is_first_time else str(b),
+                    'after': str(a),
+                    'bar': bar,
+                    'limit': str(limit)
                 }
-            except AssertionError:
-                logging.error("copytrader_info data is empty for " + uniqueName)
+                
+                async with self.semaphore:
+                    if self.session != None:
+                        async with self.session.get(self.market_url, params=params, headers=self.headers) as response:
+                               
+                                if response.status == 200:
+                                    result = await response.json()
+                                    if not result['data']:
+                                        logging.info(f"No more data to fetch or empty data returned for {inst_id}-{bar}.")
+                                        return None
+                                    else:
+                                        await self.cvt_dic_to_df_insert(f"kline-{bar}", result['data'],bar=bar, inst_id=inst_id)
+                                        a = np.int64(result['data'][-1][0]) - np.int64(1)
+                                        
+                                        if is_first_time:
+                                            time_interval: np.int64 = abs(np.int64(result['data'][0][0]) - a)
+                                            is_first_time = False
+                                        b = a - time_interval - np.int64(4) + np.int64(random.randint(1, 10)*2)
+                        
+                                elif response.status == 429:
+                                    logging.debug(f"Too many requests for {bar} - {inst_id}.")
+                                    
+                                else:
+                                    logging.error(f"Failed to fetch data with status code {response.status}")
+                                    return None
+            
             except Exception as e:
-                logging.error(f"Error processing data for {uniqueName}: {e}")
-        return None
+                logging.error(f"Error occurred: {e}, Retrying...")
+                await asyncio.sleep(sleep_time)
 
-    def get_all_copytraders_info(self):
-        """
-        Fetches the detailed information of all copytraders in the uniqueName list.
-        
-        :return: list - A list of dictionaries, each containing the details of a copytrader.
-        """
-        all_follower_details = []
-        for uniqueName in self.uniqueName_list:
-            follower_detail = self.get_single_copytrader_info(uniqueName)
-            if follower_detail:
-                all_follower_details.append(follower_detail)
-            time.sleep(0.1)
-        return all_follower_details
-    
-    def trade_detail(self, uniqueName):
-        """
-        @param: uniqueName: str
-        @return: trade_detail: dict
-        包括每一笔交易的详细信息
-        """
-        
-        logging.info("trade_detail")
-        self.trade_detail_uri = "trade-detail?t={self.current_timestamp}&uniqueName={uniqueName}"
-        url = self.HOST + "/" + self.trade_detail_uri.format(self=self, uniqueName=uniqueName)
-        r = requests.get(url, headers=self.headers, proxies=self.proxies)
-        if r.status_code!= 200:
-            print(r.status_code)
-        data = r.json()
-        try:
-            assert len(data) != 0
-            for user in data["data"][0]:
-                pass
-            time.sleep(0.1)
-        except:
-            logging.error("data is empty")
-    
-    # 此函数用于将多个字典融合成DataFrame对象
-    def concat_df(self):
-        """
-        每一行是一个跟单者的全部信息， 包括用户基本信息，跟单信息
-        @param: follower_info: dict
-        @param: follower_detail: dict
-        @return: follower_df: DataFrame
-        """
-        follower_info = self.get_follower_list()
-        follower_detail = self.get_all_copytraders_info()
-        follower_df = pd.DataFrame(follower_info)
-        follower_detail_df = pd.DataFrame(follower_detail)
-        follower_df = pd.merge(follower_df, follower_detail_df, on="uniqueName", how="left")
-        if follower_df.empty:
-            logging.error("follower_df is empty")
-        else:
-            self.follower_df = follower_df
+    async def initialize_update(self):
+        # List of restaurants could be big, think in promise of plying across the sums as detailed.
+        coin_pairs = await self.get_all_coin_pairs(filter="USDT")
+        logging.info(f"Fetching data for {len(coin_pairs)} coin pairs.\n Pairs: {coin_pairs}")
+        bar_sizes = self.bar_sizes
+        tasks = []
+        for inst_id in coin_pairs:
+            for bar in bar_sizes:
+                tasks.append(
+                    asyncio.create_task(self.kine_manager(inst_id, bar))
+                )
+        await asyncio.gather(* tasks)
 
-
-    #此函数用于将DataFrame对象转换为CSV格式。
-    def df_to_csv(self, filepath: str):
-        """
-        将DataFrame保存为CSV文件。
-
-        参数:
-        df (pandas.DataFrame): 要保存为CSV的DataFrame。
-        filepath (str): 要保存的CSV文件路径。
-        """
-        # 检查df是否为DataFrame类型
-        if not isinstance(self.follower_df, pd.DataFrame):
-            raise ValueError('输入必须是pandas DataFrame对象。')
-        
-        # 检查文件路径是否有效
-        if not filepath.endswith('.csv'):
-            raise ValueError('文件路径必须以.csv结尾。')
-        
-        # 将DataFrame保存为CSV文件
-        self.follower_df.to_csv(filepath, index=False)
-
-    def _make_request(self, url):
-        """Helper method to make HTTP requests."""
-        try:
-            response = requests.get(url, headers=self.headers, proxies=self.proxies)
-            response.raise_for_status()
-            return response.json()
-        except requests.HTTPError as http_err:
-            logging.error(f"HTTP error occurred: {http_err}")
-        except Exception as err:
-            logging.error(f"An error occurred: {err}")
-        return None
+    async def main(self):
+        # await self.drop_db()
+        await self.setup_check_mongodb()
+        await self.start_session()
+        await self.initialize_update()
+        await self.close_session()
+        await self.setup_check_mongodb()
 
 if __name__ == "__main__":
-    # Create an instance of the CryptoDataHandler
-    crypto_handler = CryptoDataHandler("crypto_db", "crypto_collection", "ETH-USDT-SWAP", "1m")
-
-    # Example to fetch and process data
-    start_date = "2023-01-01"
-    end_date = "2024-02-01"
-    fetched_data = crypto_handler.fetch_kline_data(start_date, end_date, return_df=True, save_to_db=True)
-
-    # Example of how to use fetched data
-    if not fetched_data.empty:
-        print("Fetched data:")
-        # print(fetched_data.head())
-        print(fetched_data.describe())
-    else:
-        print("No data fetched.")
+    updater = AsyncCryptoDataUpdater()
+    asyncio.run(updater.main())

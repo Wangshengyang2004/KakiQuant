@@ -5,6 +5,7 @@ import pymongo
 from dotenv import load_dotenv
 import os
 from kaki.utils.check_root_base import find_and_add_project_root
+import pandas as pd
 
 base_dir = os.path.join(find_and_add_project_root(), f"config/db.env")
 load_dotenv(base_dir)
@@ -31,6 +32,11 @@ def get_client_str(db_type: str = "mongodb"):
     if db_type == "dolphindb":
         pass
 
+async def insert_data_to_mongodb(collection, data: pd.DataFrame) -> None:
+    if not data.empty:
+        data_dict = data.to_dict('records')
+        await collection.insert_many(data_dict) # type: ignore
+            
 def mongodb_general_info(client) -> dict:
     """
     Returns general information about the MongoDB database.
@@ -61,11 +67,8 @@ def get_collection_date_range(collection, instId, bar):
         },
         {
             "$group": {
-                "_id": None,
                 "start_date": {"$min": "$timestamp"},
                 "end_date": {"$max": "$timestamp"},
-                "instId": {"$first": "$instId"},
-                "bar": {"$first": "$bar"}
             }
         }
     ]
