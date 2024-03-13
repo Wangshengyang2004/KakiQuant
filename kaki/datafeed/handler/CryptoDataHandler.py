@@ -281,11 +281,11 @@ class AsyncCryptoDataUpdater:
 
     async def main(self):
         # await self.drop_db()
+        await self.create_collections()
         await self.setup_check_mongodb()
         await self.start_session()
         await self.initialize_update()
         await self.close_session()
-        await self.setup_check_mongodb()
 
 if __name__ == "__main__":
     updater = AsyncCryptoDataUpdater()
