@@ -1,9 +1,20 @@
 # KakiQuant - Your personalized quantitative analysis platform
 
-One or two sentences providing a high-level overview of your project. Explain what problem your project solves and why it is valuable.
+KakiQuant Project is aiming to provide an AI-ready toolkit for Quant developer and a groud-to-earth web interface for traditional traders to keep the pace of AI-Quant-Trading.
+
+Features include:
+- Datasource service that can provide completed financial data at low cost, and local Databases to enjoy low latency streaming
+- Ready for AI, we will setup a framework where traditional ML toolkits, DNN-based solutions, and innovative models introduced by Quant journals.
+- Easy to use, we will finanlly provide high-level wrappers, such as flowcharts, that people can drag blocks and assemble an strategy
+
 
 ## Developing Progress
 This project is currently at a beginning state, we will finish the project in one or two years.
+We will always maintain a publicly availble branch for developers. As many profitable Quant tools, we will also provide subscription services to enable:
+- Profitable Strategies
+- Daily advice
+- AI profolio management
+- More ...
 
 ### Basic Features
 - Datafeeding: Downloading, Cleaning, Reading, Updating
@@ -16,8 +27,16 @@ This project is currently at a beginning state, we will finish the project in on
 
 ## Getting Started
 
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
+```
+# We recommend you to create a conda environment in case of any incompatibilities
 
+# Our code is developed on python3.10
+conda create -n quant python=3.10
+cd /path_to_Kakiquant
+pip install -e . # For developers
+
+# Add more later here
+```
 ### Prerequisites
 
 What things you need to install the software and how to install them:
@@ -49,7 +68,8 @@ Explain how to install any dependencies that require special attention, such as 
 ```
 pip install --extra-index-url=https://pypi.nvidia.com cudf-cu11  # For CUDA 11.x
 ```
-
+### Build Docker images
+pass
 ### Usage
 
 Show how to use the software with some useful examples and screenshots if applicable.
@@ -74,7 +94,7 @@ Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of co
 
 ## Authors
 
-- **Your Name** - *Initial work* - [YourGithub](https://github.com/YourGithub)
+- **Shengyang Wang** - *Data Science, class of 2026, Duke Kunshan University* - [YourGithub](https://github.com/YourGithub)
 
 See also the list of [contributors](https://github.com/yourproject/yourproject/contributors) who participated in this project.
 
