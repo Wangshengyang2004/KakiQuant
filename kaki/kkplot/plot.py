@@ -43,5 +43,5 @@ if __name__ == "__main__":
     t = time.time()
     df = get_crypto_price(instId='BTC-USDT-SWAP', bar='1m')
     print(f'cost:{time.time() - t:.4f}s to read db')
-    # plot_kline(df)
-    plot_kline(df, method="finp")
+    plot_kline(df)
+    # plot_kline(df, method="finp")
