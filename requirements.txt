@@ -26,3 +26,5 @@ akshare
 qstock
 pywencai
 PyInstaller
+python-telegram-bot
+OmegaConf
