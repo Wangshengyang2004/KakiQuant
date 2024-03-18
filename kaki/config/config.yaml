@@ -29,3 +29,9 @@ gpu:
   use_gpu: False
   gpu_id: 0
   
+bot:
+  telegram:
+    token: 'your_telegram_bot_token'
+    chat_id: 'your_telegram_chat_id'
+  wechat:
+    token
