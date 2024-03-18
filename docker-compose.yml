@@ -1,11 +1,11 @@
-version: '3.8'
+version: '3.9'
 services:
   app:
     build: .
     ports:
       - "80:80" # Expose the port your application runs on
     environment:
-      - MONGO_URL=mongodb://mongo:27017/mydatabase
+      - MONGO_URL=mongodb://mongo:27017
     depends_on:
       - mongo
     volumes:
@@ -17,6 +17,28 @@ services:
       - "37017:27017" # Expose MongoDB port
     volumes:
       - mongodata:/data/db
+    configs:
+      - my_config
+
+  mysql:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: mydb
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+
+configs:
+  my_config:
+    file: ./my_config.conf
+
+networks:
+  default:
+    external:
+      name: my-network
 
 volumes:
   mongodata:
+
