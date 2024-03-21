@@ -19,7 +19,6 @@ fastapi
 streamlit
 scipy
 statsmodels
-tqdm
 finplot
 mplfinance
 akshare
@@ -28,3 +27,5 @@ pywencai
 PyInstaller
 python-telegram-bot
 OmegaConf
+faker
+hydra
