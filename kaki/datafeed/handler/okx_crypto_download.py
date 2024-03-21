@@ -11,7 +11,7 @@ import aiohttp
 import okx.PublicData as PublicData
 from motor.motor_asyncio import AsyncIOMotorClient
 import numpy as np
-from typing import Optional, Iterable, Tuple, TypeAlias
+from typing import Optional, Iterable
 import aiohttp
 from collections.abc import Sequence
 from kaki.utils.check_db import insert_data_to_mongodb

@@ -1,5 +1,5 @@
 import time
-from BaseDataHandler import BaseDataHandler
+from kaki.datafeed.handler.base_download import BaseDataHandler
 import sys 
 import os
 import tushare as ts
