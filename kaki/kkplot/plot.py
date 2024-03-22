@@ -35,7 +35,8 @@ def plot_corrhmap(data: pd.DataFrame) -> None:
     # calculate the correlation matrix on the numeric columns
     corr = data.select_dtypes('number').corr()
     # plot the heatmap
-    sns.heatmap(corr)
+    sns.heatmap(corr, cmap="bone")
+    plt.show()
     
 if __name__ == "__main__":
     from kaki.kkdatac.crypto import get_crypto_price
@@ -44,4 +45,5 @@ if __name__ == "__main__":
     df = get_crypto_price(instId='BTC-USDT-SWAP', bar='1D')
     print(f'cost:{time.time() - t:.4f}s to read db')
     # plot_kline(df)
-    plot_kline(df, method="finp")
+    # plot_kline(df, method="finp")
+    plot_corrhmap(df)

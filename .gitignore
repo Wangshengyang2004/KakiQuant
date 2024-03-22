@@ -9,7 +9,8 @@ __pycache__/
 **/*.pkl
 # C extensions
 *.so
-
+**/*.csv
+*.csv
 # Distribution / packaging
 .Python
 build/
