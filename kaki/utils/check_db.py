@@ -41,8 +41,13 @@ def mongodb_general_info(client) -> dict:
     """
     Returns general information about the MongoDB database.
     """
-
-    pass
+    db_list = list(set(client.list_database_names()) - set(["admin", "config", "local","crypto_db"]))
+    db_info = {}
+    for db_name in db_list:
+        db = client[db_name]
+        collection_list = db.list_collection_names()
+        db_info[db_name] = collection_list
+    return db_info
 
 def get_collection_date_range(collection, instId, bar):
     """
@@ -67,6 +72,7 @@ def get_collection_date_range(collection, instId, bar):
         },
         {
             "$group": {
+                "_id": None,
                 "start_date": {"$min": "$timestamp"},
                 "end_date": {"$max": "$timestamp"},
             }
@@ -82,11 +88,13 @@ def get_collection_date_range(collection, instId, bar):
     else:
         return None, None
     
-    
+def get_collection_pair_lists(collection):
+    pipeline = []
+
 if __name__ == "__main__":
-    client = pymongo.MongoClient(get_client_str("mongodb"))
+    client = get_client(db_type="mongodb")
     db = client['crypto']
-    bar = '1D'
+    bar = '1m'
     collection = db[f'kline-{bar}']
 
     instId = "BTC-USDT-SWAP"  # Example instrument ID
@@ -97,3 +105,5 @@ if __name__ == "__main__":
         print(f"The latest document for {instId} {bar} is from: {end_date}")
     else:
         print(f"No documents found in the collection for {instId} {bar}.")
+
+    print(mongodb_general_info(client))
