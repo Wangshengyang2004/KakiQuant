@@ -23,7 +23,7 @@ def get_pairs(col:str) -> list:
 def get_price(instId: Union[str, List[str]], bar: str, start_date=None, end_date=None, fields=None) -> pd.DataFrame:
     if isinstance(instId, str):
         df = reader.download(instId, bar, start_date, end_date, fields)
-    elif isinstance(instId, list):
+    elif isinstance(instId, List):
         dfs = []
         for id_ in tqdm(instId):
             dfs.append(reader.download(id_, bar, start_date, end_date, fields))
@@ -33,6 +33,8 @@ def get_price(instId: Union[str, List[str]], bar: str, start_date=None, end_date
     return df.reset_index(drop=True)
 
 if __name__ == "__main__":
-    print(get_pairs("kline-1D"))
+    pairs = get_pairs("kline-1D")
+    print(pairs)
     print(get_price("BTC-USDT-SWAP", "1D", "2021-01-01", "2021-01-31"))
     print(get_price(["BTC-USDT-SWAP", "ETH-USDT-SWAP"], "1D", "2021-01-01", "2021-01-31"))
+    print(get_price(pairs, "1D"))
