@@ -28,4 +28,4 @@ PyInstaller
 python-telegram-bot
 OmegaConf
 faker
-hydra
+hydra-core

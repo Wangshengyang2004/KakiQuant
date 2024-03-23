@@ -3,7 +3,7 @@ Update the crypto data in MongoDB asynchronously using aiohttp and asyncio.
 Full data, and will run everyday to update the data.
 """
 import pandas as pd
-from datetime import date, datetime
+from datetime import datetime
 import logging
 import asyncio
 import random
@@ -15,14 +15,23 @@ from typing import Optional, Iterable
 import aiohttp
 from collections.abc import Sequence
 from kaki.utils.check_db import insert_data_to_mongodb
+from kaki.utils.check_root_base import find_and_add_project_root
+from omegaconf import OmegaConf
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
+                    handlers=[logging.FileHandler("crypto_fetch.log"), logging.StreamHandler()])
 
 # Create a TypeAlias for timestamp format
 TIMESTAMP = np.int64
 
+conf = OmegaConf.load(f"{find_and_add_project_root()}/config/config.yaml")
+logging.debug(conf)
+bar_sizes = conf.market.crypto.bar.interval
+
 class AsyncCryptoDataUpdater:
-    def __init__(self, bar_sizes: Iterable[str] = ['1m', '3m', '5m', '15m', '30m', '1H', '4H', '1D', '1W'], 
+    def __init__(self, bar_sizes: Iterable[str] = bar_sizes, 
                  max_concurrent_requests:int = 3) -> None:
-        self.client = AsyncIOMotorClient('mongodb://localhost:27017')
+        self.client = AsyncIOMotorClient('mongodb://192.168.31.142:27017')
         self.db = self.client.crypto
         self.bar_sizes = bar_sizes
         self.market_url = "https://www.okx.com/api/v5/market/history-candles"
@@ -65,10 +74,10 @@ class AsyncCryptoDataUpdater:
         desired_col_list = [f"kline-{i}" for i in self.bar_sizes]
         cur_col_list = await self.db.list_collection_names()
         new_col_list = list(set(desired_col_list) - set(cur_col_list))
-        [self.db[collection_name] for collection_name in new_col_list]
-        logging.info(f"Found existing collections: {cur_col_list} \n 
+        dbs = [self.db[collection_name] for collection_name in new_col_list]
+        logging.info(f"""Found existing collections: {cur_col_list} \n 
                      Desired Collections: {desired_col_list} \n 
-                     Successully created new collections:{new_col_list} \n")
+                     Successully created new collections:{new_col_list} \n""")
         
         
 
@@ -143,6 +152,7 @@ class AsyncCryptoDataUpdater:
             },
             {
                 "$group": {
+                    "_id": None,
                     "start_date": {"$min": "$timestamp"},
                     "end_date": {"$max": "$timestamp"},
                 }
@@ -187,8 +197,49 @@ class AsyncCryptoDataUpdater:
             await insert_data_to_mongodb(self.db[f"kline-{bar}"], missing_df)
             logging.info(f"Inserted {len(missing_df)} missing records into {inst_id} {bar}.")
 
-    async def update_early_missing(self) -> None:
-        pass
+    async def update_early_missing(self, inst_id : str, bar : str, exist_earliest : TIMESTAMP) -> None:
+        a = exist_earliest
+        b : np.int64 = a
+        time_interval= np.int64(0)
+        is_first_time = True
+        # Fetch until no more data is returned
+        while b:
+            try:
+                params = {
+                    'instId': inst_id,
+                    'before': "" if is_first_time else str(b),
+                    'after': str(a),
+                    'bar': bar,
+                }
+                
+                async with self.semaphore:
+                    if self.session != None:
+                        async with self.session.get(self.market_url, params=params, headers=self.headers) as response:
+                               
+                                if response.status == 200:
+                                    result = await response.json()
+                                    if not result['data']:
+                                        logging.info(f"No more data to fetch or empty data returned for {inst_id}-{bar}.")
+                                        return None
+                                    else:
+                                        await self.cvt_dic_to_df_insert(f"kline-{bar}", result['data'],bar=bar, inst_id=inst_id)
+                                        a = np.int64(result['data'][-1][0]) - np.int64(1)
+                                        
+                                        if is_first_time:
+                                            time_interval: np.int64 = abs(np.int64(result['data'][0][0]) - a)
+                                            is_first_time = False
+                                        b = a - time_interval - np.int64(4) + np.int64(random.randint(1, 10)*2)
+                        
+                                elif response.status == 429:
+                                    logging.debug(f"Too many requests for {bar} - {inst_id}.")
+                                    
+                                else:
+                                    logging.error(f"Failed to fetch data with status code {response.status}")
+                                    return None
+            
+            except Exception as e:
+                logging.error(f"Error occurred: {e}, Retrying...")
+                await asyncio.sleep(0.1)
     
     async def update_latest_missing(self) -> None:
         pass
@@ -211,23 +262,17 @@ class AsyncCryptoDataUpdater:
         df['instId'] = inst_id
         df['bar'] = bar
         df_dict = df.to_dict('records')
-        await col.insert_many(data_dict) # type: ignore
+        await col.insert_many(df_dict) # type: ignore
         logging.info(f"Inserted {len(df_dict)} new records into {col_name} asynchronously.")
     
-    async def fetch_in_between(self, inst_id: str, bar: str, itv_earliest: TIMESTAMP, itv_latest: TIMESTAMP) -> None:
-        pass
-    
-    async def kine_manager(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
-        exist_earliest, exist_latest = await self.check_existing_data(inst_id, bar)
-        logging.info(f"Found existing data for {inst_id} {bar} from {exist_earliest} to {exist_latest}.") \
-            if exist_earliest != None else logging.info(f"Existing data not found for {inst_id} {bar}")
+    async def full_kline_updater(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
         latest_ts = await self.now_ts(inst_id, bar)
         a = latest_ts
         b : np.int64 = a
         time_interval= np.int64(0)
         is_first_time = True
         # Fetch until no more data is returned
-        while b > collection_latest:
+        while b:
             try:
                 params = {
                     'instId': inst_id,
@@ -265,6 +310,61 @@ class AsyncCryptoDataUpdater:
             except Exception as e:
                 logging.error(f"Error occurred: {e}, Retrying...")
                 await asyncio.sleep(sleep_time)
+
+    async def fetch_in_between(self, inst_id: str, bar: str, itv_earliest: TIMESTAMP, itv_latest: TIMESTAMP) -> None:
+        a = itv_latest
+        b : np.int64 = a
+        time_interval= np.int64(0)
+        is_first_time = True
+        while b > itv_earliest:
+            try:
+                params = {
+                    'instId': inst_id,
+                    'before': "" if is_first_time else str(b),
+                    'after': str(a),
+                    'bar': bar,
+                }
+                
+                async with self.semaphore:
+                    if self.session != None:
+                        async with self.session.get(self.market_url, params=params, headers=self.headers) as response:
+                                if response.status == 200:
+                                    result = await response.json()
+                                    if not result['data']:
+                                        logging.info(f"No more data to fetch or empty data returned for {inst_id}-{bar}.")
+                                        return None
+                                    else:
+                                        await self.cvt_dic_to_df_insert(f"kline-{bar}", result['data'],bar=bar, inst_id=inst_id)
+                                        a = np.int64(result['data'][-1][0]) - np.int64(1)
+                                        
+                                        if is_first_time:
+                                            time_interval: np.int64 = abs(np.int64(result['data'][0][0]) - a)
+                                            is_first_time = False
+                                        b = a - time_interval - np.int64(4) + np.int64(random.randint(1, 10)*2)
+                        
+                                elif response.status == 429:
+                                    logging.debug(f"Too many requests for {bar} - {inst_id}.")
+                                    
+                                else:
+                                    logging.error(f"Failed to fetch data with status code {response.status}")
+                                    return None
+            
+            except Exception as e:
+                logging.error(f"Error occurred: {e}, Retrying...")
+                await asyncio.sleep(0.1)
+    
+    async def kine_manager(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
+        exist_earliest, exist_latest = await self.check_existing_data(inst_id, bar)
+        if exist_earliest == None:
+            logging.info(f"Existing data not found for {inst_id} {bar}")
+            await self.full_kline_updater(inst_id, bar)
+        
+        elif exist_earliest is not None:
+            logging.info(f"Found existing data for {inst_id} {bar} from {exist_earliest} to {exist_latest}.")
+            latest_ts = await self.now_ts(inst_id, bar)
+            await self.fetch_in_between(inst_id, bar, exist_latest, latest_ts)
+            await self.update_early_missing(inst_id, bar, exist_earliest)
+
 
     async def initialize_update(self):
         # List of restaurants could be big, think in promise of plying across the sums as detailed.
