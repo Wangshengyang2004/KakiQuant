@@ -66,20 +66,42 @@ class AsyncCryptoDataUpdater:
         if self.session and not self.session.closed:
             await self.session.close()
 
-    async def create_collections(self) -> None:
-        """
-        Create the collections in advance of the indexing function, 
-        if collection already exist, skip; if not, create them base on the list: self.bar_sizes
-        """
+    async def create_collections_and_indexes(self):
         desired_col_list = [f"kline-{i}" for i in self.bar_sizes]
-        cur_col_list = await self.db.list_collection_names()
-        new_col_list = list(set(desired_col_list) - set(cur_col_list))
-        dbs = [self.db[collection_name] for collection_name in new_col_list]
-        logging.info(f"""Found existing collections: {cur_col_list} \n 
-                     Desired Collections: {desired_col_list} \n 
-                     Successully created new collections:{new_col_list} \n""")
+        # Get the list of existing collections in the database
+        existing_collections = await self.db.list_collection_names()
         
+        for collection_name in desired_col_list:
+            # Check if the collection already exists
+            if collection_name not in existing_collections:
+                # If the collection does not exist, create it by inserting a dummy document
+                await self.db[collection_name].insert_one({'init': True})
+                logging.info(f"Collection {collection_name} created with a dummy document.")
+            else:
+                logging.info(f"Collection {collection_name} already exists.")
+            
+            # Check and create indexes
+            await self.ensure_indexes(collection_name)
+
+    async def ensure_indexes(self, collection_name):
+        collection = self.db[collection_name]
+        # Fetch the current indexes on the collection
+        current_indexes = await collection.index_information()
         
+        # Define your desired index key pattern
+        desired_index_key = [("instId", 1), ("timestamp", 1)]
+        
+        # Determine if your desired index already exists
+        index_exists = any(index['key'] == desired_index_key for index in current_indexes.values())
+        
+        if not index_exists:
+            # Create the index if it does not exist
+            await collection.create_index(desired_index_key, unique=True)
+            logging.info(f"Index on {desired_index_key} created for collection {collection_name}.")
+        else:
+            logging.info(f"Index on {desired_index_key} already exists for collection {collection_name}.")
+
+    
 
 
     async def get_all_coin_pairs(self, filter: Optional[str] = None) -> list[str]:
@@ -359,7 +381,7 @@ class AsyncCryptoDataUpdater:
             logging.info(f"Existing data not found for {inst_id} {bar}")
             await self.full_kline_updater(inst_id, bar)
         
-        elif exist_earliest is not None:
+        else:
             logging.info(f"Found existing data for {inst_id} {bar} from {exist_earliest} to {exist_latest}.")
             latest_ts = await self.now_ts(inst_id, bar)
             await self.fetch_in_between(inst_id, bar, exist_latest, latest_ts)
@@ -381,8 +403,8 @@ class AsyncCryptoDataUpdater:
 
     async def main(self):
         # await self.drop_db()
-        await self.create_collections()
-        await self.setup_check_mongodb()
+        await self.create_collections_and_indexes()
+        # await self.setup_check_mongodb()
         await self.start_session()
         await self.initialize_update()
         await self.close_session()
