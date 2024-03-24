@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from kaki.utils.check_db import insert_data_to_mongodb
 from kaki.utils.check_root_base import find_and_add_project_root
 from omegaconf import OmegaConf
-
+from pymongo.errors import BulkWriteError
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
                     handlers=[logging.FileHandler("crypto_fetch.log"), logging.StreamHandler()])
 
@@ -31,7 +31,7 @@ bar_sizes = conf.market.crypto.bar.interval
 class AsyncCryptoDataUpdater:
     def __init__(self, bar_sizes: Iterable[str] = bar_sizes, 
                  max_concurrent_requests:int = 3) -> None:
-        self.client = AsyncIOMotorClient('mongodb://192.168.31.142:27017')
+        self.client = AsyncIOMotorClient('mongodb://localhost:27017')
         self.db = self.client.crypto
         self.bar_sizes = bar_sizes
         self.market_url = "https://www.okx.com/api/v5/market/history-candles"
@@ -370,6 +370,9 @@ class AsyncCryptoDataUpdater:
                                 else:
                                     logging.error(f"Failed to fetch data with status code {response.status}")
                                     return None
+            except BulkWriteError as e:
+                logging.info(f"New data meets the old one for {inst_id} - {bar}")
+                return
             
             except Exception as e:
                 logging.error(f"Error occurred: {e}, Retrying...")
