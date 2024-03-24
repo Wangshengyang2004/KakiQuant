@@ -29,3 +29,6 @@ python-telegram-bot
 OmegaConf
 faker
 hydra-core
+networkx
+node2vec
+mpl_finance
