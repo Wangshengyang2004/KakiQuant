@@ -68,6 +68,8 @@ st.markdown(center_style, unsafe_allow_html=True)
 st.markdown('<div class="centered-links">', unsafe_allow_html=True)
 st.page_link("Home_Page.py", label="Home")
 st.page_link("pages/Similar_Klines.py", label="Similar Klines")
+st.page_link("pages/HMM_model.py", label="HMM Model")
+st.page_link("pages/GNN_model.py", label="GNN Model")
 st.markdown('</div>', unsafe_allow_html=True)
 
 current_date = "24/03/2024"

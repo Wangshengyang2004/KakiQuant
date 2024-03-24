@@ -23,8 +23,8 @@ param2 = st.sidebar.slider('hist_len', min_value=200.0, max_value=300.0, value=2
 param3 = st.sidebar.text_input('date of train', '2023-01-01')
 param4 = st.sidebar.text_input('input file', 'rev.csv')
 #Run
-if st.sidebar.button('Try paramerters'):
-    run(param1,param2,param3,param4)
+# if st.sidebar.button('Try paramerters'):
+#     run(param1,param2,param3,param4)
 
 # Picture selection
 st.sidebar.header('Picture Selection')
