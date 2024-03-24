@@ -9,7 +9,7 @@ from kaki.kkdatac.crypto import get_price, get_pairs
 pairs = get_pairs("kline-1D")
 
 # create a dataframe with all pairs
-data = get_price(instId=get_pairs(), bar="1D", fields=["open", "high", "low", "close", "instId"])
+data = get_price(instId=pairs, bar="1D", fields=["open", "high", "low", "close", "instId"])
 data.set_index(["instId", "timestamp"])
 
 # get the last 60 days with groups that have a num of timestamps
