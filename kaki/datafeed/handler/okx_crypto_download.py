@@ -18,6 +18,9 @@ from kaki.utils.check_db import insert_data_to_mongodb
 from kaki.utils.check_root_base import find_and_add_project_root
 from omegaconf import OmegaConf
 from pymongo.errors import BulkWriteError
+import uvloop
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
                     handlers=[logging.FileHandler("crypto_fetch.log"), logging.StreamHandler()])
 
@@ -388,8 +391,9 @@ class AsyncCryptoDataUpdater:
         else:
             logging.info(f"Found existing data for {inst_id} {bar} from {exist_earliest} to {exist_latest}.")
             latest_ts = await self.now_ts(inst_id, bar)
-            await self.fetch_in_between(inst_id, bar, exist_latest, latest_ts)
             await self.update_early_missing(inst_id, bar, exist_earliest)
+            await self.fetch_in_between(inst_id, bar, exist_latest, latest_ts)
+            
 
 
     async def initialize_update(self):
