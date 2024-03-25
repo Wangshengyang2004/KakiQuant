@@ -25,13 +25,14 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 TIMESTAMP = np.int64
 
 conf = OmegaConf.load(f"{find_and_add_project_root()}/config/config.yaml")
+db_str = "mongodb://" + conf.db.mongodb.host + ":" + str(conf.db.mongodb.port)
 logging.debug(conf)
 bar_sizes = conf.market.crypto.bar.interval
 
 class AsyncCryptoDataUpdater:
     def __init__(self, bar_sizes: Iterable[str] = bar_sizes, 
                  max_concurrent_requests:int = 5) -> None:
-        self.client = AsyncIOMotorClient('mongodb://localhost:27017')
+        self.client = AsyncIOMotorClient(db_str)
         self.db = self.client.crypto
         self.bar_sizes = bar_sizes
         self.market_url = "https://www.okx.com/api/v5/market/history-candles"
@@ -285,7 +286,7 @@ class AsyncCryptoDataUpdater:
         df['bar'] = bar
         df_dict = df.to_dict('records')
         await col.insert_many(df_dict) # type: ignore
-        logging.info(f"Inserted {len(df_dict)} new records into {col_name} asynchronously.")
+        logging.info(f"Inserted {len(df_dict)} {inst_id} new records into {col_name} asynchronously.")
     
     async def full_kline_updater(self, inst_id: str, bar: str, sleep_time: int = 1, limit: int = 100):
         latest_ts = await self.now_ts(inst_id, bar)

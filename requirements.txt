@@ -19,7 +19,6 @@ fastapi
 streamlit
 scipy
 statsmodels
-finplot
 mplfinance
 akshare
 qstock
