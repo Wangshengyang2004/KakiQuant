@@ -30,7 +30,7 @@ bar_sizes = conf.market.crypto.bar.interval
 
 class AsyncCryptoDataUpdater:
     def __init__(self, bar_sizes: Iterable[str] = bar_sizes, 
-                 max_concurrent_requests:int = 3) -> None:
+                 max_concurrent_requests:int = 5) -> None:
         self.client = AsyncIOMotorClient('mongodb://localhost:27017')
         self.db = self.client.crypto
         self.bar_sizes = bar_sizes
