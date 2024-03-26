@@ -18,8 +18,11 @@ from kaki.utils.check_db import insert_data_to_mongodb
 from kaki.utils.check_root_base import find_and_add_project_root
 from omegaconf import OmegaConf
 from pymongo.errors import BulkWriteError
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+import os
+# Check system platform, if linux, use uvloop
+if os.name == 'posix':
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
                     handlers=[logging.FileHandler("crypto_fetch.log"), logging.StreamHandler()])
