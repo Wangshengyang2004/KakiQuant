@@ -1,38 +1,49 @@
-# Use an official Python runtime as a parent image
-FROM ubuntu:22.04
+# syntax=docker/dockerfile:1
 
-# Set the working directory in the container
-WORKDIR /usr/src/app
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Dockerfile reference guide at
+# https://docs.docker.com/engine/reference/builder/
 
-# Copy the current directory contents into the container at /usr/src/app
+ARG PYTHON_VERSION=3.10.12
+FROM python:${PYTHON_VERSION}-slim as base
+
+# Prevents Python from writing pyc files.
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Keeps Python from buffering stdout and stderr to avoid situations where
+# the application crashes without emitting any logs due to buffering.
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Create a non-privileged user that the app will run under.
+# See https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#user
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+
+# Download dependencies as a separate step to take advantage of Docker's caching.
+# Leverage a cache mount to /root/.cache/pip to speed up subsequent builds.
+# Leverage a bind mount to requirements.txt to avoid having to copy them into
+# into this layer.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=bind,source=requirements.txt,target=requirements.txt \
+    python -m pip install -r requirements.txt
+
+# Switch to the non-privileged user to run the application.
+USER appuser
+
+# Copy the source code into the container.
 COPY . .
 
-# Install Python3.10 and pip
-RUN apt-get update && \
-    apt-get install -y python3.10 python3-pip
+# Expose the port that the application listens on.
+EXPOSE 8501
 
-# Install build-essential for building Python packages
-RUN apt-get install -y build-essential
-# Install any needed packages specified in requirements.txt and requirements-gpu.txt
-# Note: Uncomment the next line if GPU support is required and you have the appropriate base image
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -e .
-
-# Run the script to install any additional requirements
-# RUN chmod +x ./install-requirements.sh && \
-#     ./install-requirements.sh
-
-# Install CPU-based requirements (comment this out if using GPU requirements exclusively)
-# RUN pip install --no-cache-dir -r requirements.txt
-
-# Make port 80 available to the world outside this container
-EXPOSE 80
-EXPOSE 443
-EXPOSE 8000
-
-# Define environment variable
-# Note: Replace values with your actual environment variables
-# ENV NAME Value
-
-# Run main.py when the container launches
-CMD ["python3", "./kaki/main.py"]
+# Run the application.
+CMD streamlit run Home_page.py
