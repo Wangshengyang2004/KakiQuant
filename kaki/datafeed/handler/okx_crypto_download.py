@@ -18,8 +18,8 @@ from kaki.utils.check_db import insert_data_to_mongodb
 from kaki.utils.check_root_base import find_and_add_project_root
 from omegaconf import OmegaConf
 from pymongo.errors import BulkWriteError
-import uvloop
-asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+#import uvloop
+#asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", 
                     handlers=[logging.FileHandler("crypto_fetch.log"), logging.StreamHandler()])
@@ -34,7 +34,7 @@ bar_sizes = conf.market.crypto.bar.interval
 
 class AsyncCryptoDataUpdater:
     def __init__(self, bar_sizes: Iterable[str] = bar_sizes, 
-                 max_concurrent_requests:int = 5) -> None:
+                 max_concurrent_requests:int = 50) -> None:
         self.client = AsyncIOMotorClient(db_str)
         self.db = self.client.crypto
         self.bar_sizes = bar_sizes
@@ -398,7 +398,7 @@ class AsyncCryptoDataUpdater:
 
     async def initialize_update(self):
         # List of restaurants could be big, think in promise of plying across the sums as detailed.
-        coin_pairs = await self.get_all_coin_pairs(filter="USDT")
+        coin_pairs = await self.get_all_coin_pairs(filter=None)
         logging.info(f"Fetching data for {len(coin_pairs)} coin pairs.\n Pairs: {coin_pairs}")
         bar_sizes = self.bar_sizes
         tasks = []
