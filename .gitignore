@@ -4,7 +4,7 @@ __pycache__/
 .DS_Store
 .vscode
 **/.DS_Store
-*.py[cod]
+# *.py[cod]
 *$py.class
 **/*.pkl
 output/

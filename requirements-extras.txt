@@ -1,2 +1,3 @@
 finplot
 uvloop
+gm[all]

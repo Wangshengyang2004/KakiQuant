@@ -8,3 +8,4 @@ cuxfilter-cu11==23.12.*
 cucim-cu11==23.12.*
 pylibraft-cu11==23.12.*
 raft-dask-cu11==23.12.*
+cupy-cuda11x
